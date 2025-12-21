@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.dist/
+.build/
+.eggs/
+.venv/
+venv/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs / runtime
+logs/
+*.log
+
+# Data / secrets
+paper_wallet.json
+data/
+*.csv
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Node
+node_modules/
