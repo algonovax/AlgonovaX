@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Overwrite .gitignore with canonical content (no merge/dedupe).
 set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -11,48 +12,63 @@ on_err() {
 }
 trap on_err ERR
 
-GI="$ROOT/.gitignore"
-TMP="$ROOT/.gitignore.__tmp__.$$"
+TMP=".gitignore.__tmp__.$$"
+trap 'rm -f "$TMP"' EXIT
 
-cleanup() { rm -f "$TMP"; }
-trap cleanup EXIT
+cat > "$TMP" <<'GITIGNORE'
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
 
-need() { command -v "$1" >/dev/null 2>&1 || { echo "MISSING_CMD: $1" >&2; exit 2; }; }
-need awk
-need grep
-need cat
-need rm
+# Virtual envs
+.venv/
+venv/
+.env/
+.env.*
+!.env.example
 
-[[ -f "$GI" ]] || : > "$GI"
+# ===== Logs / runtime =====
+logs/
+*.log
 
-awk '!seen[$0]++ {print}' "$GI" > "$TMP"
+# ===== Data / outputs =====
+data/
+*.csv
+*.jsonl
+*.parquet
 
-ensure() {
-  local line="$1"
-  grep -qxF "$line" "$TMP" || printf '%s\n' "$line" >> "$TMP"
-}
+# ===== Secrets =====
+config/secrets.env
+paper_wallet.json
 
-ensure ""
-ensure "# ---- local secrets ----"
-ensure "config/secrets.env"
+# ===== Backups / temp =====
+*.bak
+*.bak.*
+*~
+*.tmp
+*.swp
+scripts/_bak/
+_quarantine/
 
-ensure ""
-ensure "# ---- backups / temp ----"
-ensure "*.bak.*"
-ensure "*~"
-ensure "*.tmp"
-ensure "*.log"
-ensure "data/"
-ensure "scripts/_bak/"
-ensure "_quarantine/"
+# ===== OS / editor =====
+.DS_Store
+.idea/
+.vscode/
 
-ensure ""
-ensure "# ---- python cache/venv ----"
-ensure "__pycache__/"
-ensure "*.pyc"
-ensure ".venv/"
+# ===== Node =====
+node_modules/
+GITIGNORE
 
-cat "$TMP" > "$GI"
+# Sanity check
+tail -n 1 "$TMP" | grep -qxF "node_modules/" || { echo "BAD_WRITE" >&2; exit 2; }
 
-echo "OK: updated .gitignore"
-echo "Next: git add .gitignore"
+mv -f "$TMP" .gitignore
+echo "OK: wrote canonical .gitignore"
