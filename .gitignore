@@ -47,3 +47,14 @@ _quarantine/
 
 # ===== Node =====
 node_modules/
+# secrets
+.env
+
+# python build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
