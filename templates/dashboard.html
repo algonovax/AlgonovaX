@@ -1,0 +1,268 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>AlgoNovaX</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <style>
+    body { font-family: system-ui; margin: 16px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    button, select, input { padding: 8px 12px; border-radius: 8px; }
+    textarea { width: 100%; min-height: 160px; }
+    pre { background: #111; color: #eee; padding: 10px; border-radius: 8px; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 12px; margin-top: 12px; }
+    canvas { width: 100%; height: 220px; border: 1px solid #ddd; border-radius: 10px; }
+    .pill { padding: 2px 8px; border: 1px solid #ddd; border-radius: 999px; }
+    label { font-size: 12px; color: #333; }
+    .grid { display:grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 10px; }
+    .grid2 { display:grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 10px; }
+    .danger { border: 2px solid #d33; }
+  </style>
+</head>
+<body>
+
+<h2>AlgoNovaX Control</h2>
+
+<div class="row">
+  <button hx-post="/api/control/start" hx-on::after-request="htmx.ajax('GET','/api/status','#status')">Start</button>
+  <button hx-post="/api/control/stop" hx-on::after-request="htmx.ajax('GET','/api/status','#status')">Stop</button>
+  <button hx-post="/api/control/restart" hx-on::after-request="htmx.ajax('GET','/api/status','#status')">Restart</button>
+  <button hx-post="/api/control/recover" hx-on::after-request="htmx.ajax('GET','/api/status','#status')">Recover</button>
+  <button class="danger" hx-post="/api/panic" hx-on::after-request="htmx.ajax('GET','/api/status','#status')">PANIC (soft kill)</button>
+  <form method="post" action="/api/auth/logout" style="margin-left:auto">
+    <button type="submit">Logout</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Status</h3>
+  <pre id="status" hx-get="/api/status" hx-trigger="load, every 2s"></pre>
+</div>
+
+<div class="card">
+  <h3>Mode</h3>
+  <div class="row">
+    <button onclick="modePaper()">Paper</button>
+    <button class="danger" onclick="modeLive()">Live (confirm)</button>
+  </div>
+  <pre id="modeMsg" style="margin-top:10px"></pre>
+</div>
+
+<div class="card">
+  <h3>Manual Trade</h3>
+
+  <div class="grid2">
+    <div>
+      <label>Symbol</label>
+      <input id="t_symbol" value="BTC/USD">
+    </div>
+    <div>
+      <label>Buy USD</label>
+      <input id="t_usd" value="25">
+    </div>
+    <div>
+      <label>Sell Qty</label>
+      <input id="t_qty" value="0.001">
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:10px">
+    <button onclick="buy()">BUY</button>
+    <button onclick="sell()">SELL</button>
+  </div>
+
+  <pre id="tradeMsg" style="margin-top:10px"></pre>
+</div>
+
+<div class="card">
+  <h3>Strategy</h3>
+  <div class="row">
+    <span class="pill" id="currentStrat">current: (loading)</span>
+    <select id="stratSelect"></select>
+    <button onclick="applyStrategy()">Apply + Restart Engine</button>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Backtest</h3>
+
+  <div class="grid">
+    <div>
+      <label>Strategy</label>
+      <select id="btStrategy"></select>
+    </div>
+    <div>
+      <label>Symbol</label>
+      <input id="btSymbol" value="BTC/USD">
+    </div>
+    <div>
+      <label>Timeframe</label>
+      <input id="btTimeframe" value="1m">
+    </div>
+    <div>
+      <label>Start (optional)</label>
+      <input id="btStart" placeholder="2025-12-01">
+    </div>
+    <div>
+      <label>End (optional)</label>
+      <input id="btEnd" placeholder="2025-12-23">
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:10px">
+    <button onclick="runBacktest()">Run Backtest</button>
+    <button onclick="loadBacktest()">Refresh Output</button>
+  </div>
+
+  <pre id="btOut" style="margin-top:10px" hx-get="/api/backtest/output?tail=300" hx-trigger="load, every 2s"></pre>
+</div>
+
+<div class="card">
+  <h3>PnL / Equity Curve</h3>
+  <canvas id="eq"></canvas>
+</div>
+
+<div class="card">
+  <h3>Balances</h3>
+  <pre id="balances" hx-get="/api/balances" hx-trigger="load, every 3s"></pre>
+</div>
+
+<div class="card">
+  <h3>Positions</h3>
+  <pre id="positions" hx-get="/api/positions" hx-trigger="load, every 3s"></pre>
+</div>
+
+<div class="card">
+  <h3>Trade History</h3>
+  <pre id="trades" hx-get="/api/trades" hx-trigger="load, every 5s"></pre>
+</div>
+
+<div class="card">
+  <h3>Logs</h3>
+  <pre id="logs" hx-get="/api/logs?tail=200" hx-trigger="load, every 2s"></pre>
+</div>
+
+<script>
+async function loadStrategies() {
+  const res = await fetch('/api/strategies');
+  const data = await res.json();
+
+  const sel = document.getElementById('stratSelect');
+  const bt = document.getElementById('btStrategy');
+
+  sel.innerHTML = '';
+  bt.innerHTML = '';
+
+  (data.available || []).forEach(s => {
+    const o1 = document.createElement('option');
+    o1.value = s; o1.textContent = s;
+    if (s === data.current) o1.selected = true;
+    sel.appendChild(o1);
+
+    const o2 = document.createElement('option');
+    o2.value = s; o2.textContent = s;
+    if (s === data.current) o2.selected = true;
+    bt.appendChild(o2);
+  });
+
+  document.getElementById('currentStrat').textContent = 'current: ' + (data.current ?? '(none)');
+}
+
+async function applyStrategy() {
+  const strategy = document.getElementById('stratSelect').value;
+  const res = await fetch('/api/strategies/select', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({strategy})
+  });
+  document.getElementById('tradeMsg').textContent = res.ok ? "ok" : await res.text();
+}
+
+async function modePaper() {
+  const res = await fetch('/api/settings/mode/paper', {method:'POST'});
+  document.getElementById('modeMsg').textContent = res.ok ? JSON.stringify(await res.json(), null, 2) : await res.text();
+}
+
+async function modeLive() {
+  const ok = confirm("LIVE MODE: This enables real trading. Continue?");
+  if (!ok) return;
+  const res = await fetch('/api/settings/mode/live/confirm?confirm=true', {method:'POST'});
+  document.getElementById('modeMsg').textContent = res.ok ? JSON.stringify(await res.json(), null, 2) : await res.text();
+}
+
+async function buy() {
+  const symbol = document.getElementById('t_symbol').value;
+  const usd = Number(document.getElementById('t_usd').value);
+  const res = await fetch(`/api/trade/buy?symbol=${encodeURIComponent(symbol)}&usd=${encodeURIComponent(usd)}`, {method:'POST'});
+  document.getElementById('tradeMsg').textContent = res.ok ? JSON.stringify(await res.json(), null, 2) : await res.text();
+}
+
+async function sell() {
+  const symbol = document.getElementById('t_symbol').value;
+  const qty = Number(document.getElementById('t_qty').value);
+  const res = await fetch(`/api/trade/sell?symbol=${encodeURIComponent(symbol)}&qty=${encodeURIComponent(qty)}`, {method:'POST'});
+  document.getElementById('tradeMsg').textContent = res.ok ? JSON.stringify(await res.json(), null, 2) : await res.text();
+}
+
+async function runBacktest() {
+  const job = {
+    strategy: document.getElementById('btStrategy').value,
+    symbol: document.getElementById('btSymbol').value,
+    timeframe: document.getElementById('btTimeframe').value,
+    start: document.getElementById('btStart').value,
+    end: document.getElementById('btEnd').value,
+  };
+  const res = await fetch('/api/backtest/run', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(job)
+  });
+  if (!res.ok) { alert(await res.text()); return; }
+  htmx.ajax('GET','/api/backtest/output?tail=300','#btOut');
+}
+
+function loadBacktest() {
+  htmx.ajax('GET','/api/backtest/output?tail=300','#btOut');
+}
+
+async function loadEquity() {
+  const res = await fetch('/api/equity');
+  const pts = await res.json();
+
+  const c = document.getElementById('eq');
+  const ctx = c.getContext('2d');
+
+  const w = c.width = c.clientWidth * devicePixelRatio;
+  const h = c.height = 220 * devicePixelRatio;
+
+  ctx.clearRect(0,0,w,h);
+
+  if (!pts || pts.length < 2) return;
+
+  const ys = pts.map(p => Number(p.equity));
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+
+  const pad = 12 * devicePixelRatio;
+
+  function x(i) { return pad + (i * (w - pad*2) / (pts.length - 1)); }
+  function y(v) {
+    const denom = (maxY - minY) || 1;
+    const t = (v - minY) / denom;
+    return (h - pad) - t * (h - pad*2);
+  }
+
+  ctx.lineWidth = 2 * devicePixelRatio;
+  ctx.beginPath();
+  ctx.moveTo(x(0), y(ys[0]));
+  for (let i=1;i<ys.length;i++) ctx.lineTo(x(i), y(ys[i]));
+  ctx.stroke();
+}
+
+loadStrategies();
+loadEquity();
+setInterval(loadEquity, 5000);
+</script>
+
+</body>
+</html>

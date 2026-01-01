@@ -1,0 +1,9 @@
+{
+  "current": "ema_rsi",
+  "available": [
+    "ema_rsi",
+    "sma_cross",
+    "breakout",
+    "mean_reversion"
+  ]
+}

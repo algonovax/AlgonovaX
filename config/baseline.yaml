@@ -1,0 +1,32 @@
+symbol: "BTC/USD"
+timeframe: "5m"
+
+data:
+  # Uses newest file unless CANDLE_FILE is set externally
+  min_candles: 8000
+
+costs:
+  fee_rate: 0.001
+  slippage_rate: 0.0003
+  stake_quote: 100
+
+search:
+  iterations: 40
+  seed: 1337
+  top_k: 10
+
+params:
+  TREND_EMA: {type: int, min: 40, max: 200}
+  SLOPE_BARS: {type: int, min: 2, max: 10}
+  ATR_N: {type: int, min: 10, max: 40}
+  STOP_K: {type: float, min: 1.0, max: 4.0}
+  TP_K: {type: float, min: 1.0, max: 6.0}
+  MIN_HOLD_BARS: {type: int, min: 1, max: 12}
+  COOLDOWN_BARS: {type: int, min: 0, max: 24}
+  RSI_N: {type: int, min: 8, max: 30}
+  RSI_ENTRY_MAX: {type: float, min: 25.0, max: 55.0}
+
+walk_forward:
+  # split newest candle file by time: first train_days then test_days
+  train_days: 30
+  test_days: 15
