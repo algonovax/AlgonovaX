@@ -9,11 +9,36 @@ from algonovax.strategies.indicators import atr, ema, rsi
 
 
 def die(msg: str, code: int = 2) -> None:
+    """
+    Print an error message to standard error prefixed with "DIAG_FAIL:" and terminate the process with the given exit code.
+    
+    Parameters:
+        msg (str): Error message to print after the "DIAG_FAIL:" prefix.
+        code (int): Exit code to use when terminating the process. Defaults to 2.
+    
+    Raises:
+        SystemExit: Always raised to terminate the program with the specified exit code.
+    """
     print(f"DIAG_FAIL: {msg}", file=sys.stderr)
     raise SystemExit(code)
 
 
 def main() -> None:
+    """
+    Run diagnostic analysis on candlestick data specified by the CANDLES_JSON environment variable.
+    
+    Loads candle data, computes EMA (trend and fast), RSI, and ATR with configurable parameters read from environment variables, evaluates a set of gating conditions per rolling window (ATR threshold, trend regime, fast EMA slope, price vs fast EMA, recent RSI cross, and ATR-based impulse), and prints aggregate gate pass counts and the last index where all gates passed. Exits with an error if CANDLES_JSON is not set, the loaded data is empty, or there are not enough rows after warmup.
+    
+    Environment variables (with defaults):
+    - CANDLES_JSON: path to input JSON (required).
+    - TREND_EMA (100), FAST_EMA (21), RSI_N (14), RSI_ENTRY (46),
+      ATR_N (14), IMPULSE_ATR (0.35), TREND_SLOPE_BARS (6), FAST_SLOPE_BARS (4),
+      MIN_ATR_PCT (0.0008), RSI_CROSS_LOOKBACK (8)
+    
+    Side effects:
+    - Prints summary statistics and gate pass counts to standard output.
+    - Exits the process on missing/invalid input.
+    """
     path = os.getenv("CANDLES_JSON")
     if not path:
         die("Set CANDLES_JSON")

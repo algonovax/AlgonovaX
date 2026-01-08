@@ -5,6 +5,7 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# on_err prints a standardized error message with the failing exit code, line number, and command, then exits with that code.
 on_err() {
   local ec=$?
   echo "FIX_GITIGNORE_CRASH exit_code=$ec line=${BASH_LINENO[0]} cmd=${BASH_COMMAND}" >&2

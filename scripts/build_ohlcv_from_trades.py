@@ -15,12 +15,34 @@ INTERVAL_MS = INTERVAL_MIN * 60_000
 
 def parse_trade(row) -> tuple[int, float, float]:
     # [price, volume, time, side, orderType, misc]
+    """
+    Parse a raw trade row into a timestamp (milliseconds), price, and volume.
+    
+    Parameters:
+        row (Sequence): Trade row expected as [price, volume, time, side, orderType, misc].
+            - price and volume may be strings or numbers.
+            - time is seconds since the Unix epoch (string or number).
+    
+    Returns:
+        tuple[int, float, float]: (timestamp_ms, price, volume)
+            - timestamp_ms: integer milliseconds since the Unix epoch.
+            - price: trade price as float.
+            - volume: trade volume as float.
+    """
     price = float(row[0])
     vol = float(row[1])
     ts_ms = int(float(row[2]) * 1000.0)
     return ts_ms, price, vol
 
 def main() -> int:
+    """
+    Aggregate trades from the configured trades file into fixed-interval OHLCV candles and write the resulting candle array to a JSON file in CANDLES_DIR.
+    
+    The function reads trades from TRADES_DIR/kraken_{PAIR}_trades_last30d.json, validates and sorts them by timestamp, groups trades into buckets of INTERVAL_MS milliseconds producing candles with [timestamp, open, high, low, close, volume], and writes the list of candles to CANDLES_DIR with a filename that encodes the pair, interval (in minutes), start timestamp, and end timestamp.
+    
+    Returns:
+        int: `0` on success; `1` if the source file is missing, the trades data is empty/invalid, or no candles could be built.
+    """
     src = TRADES_DIR / f"kraken_{PAIR}_trades_last30d.json"
     if not src.exists():
         print(f"ERROR: missing {src}")

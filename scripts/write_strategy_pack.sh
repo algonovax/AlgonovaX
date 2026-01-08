@@ -4,6 +4,7 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# on_err writes a crash message with exit code, line number, and failed command to stderr, then exits with that code.
 on_err() {
   local ec=$?
   echo "WRITE_PACK_CRASH exit_code=$ec line=${BASH_LINENO[0]} cmd=${BASH_COMMAND}" >&2
@@ -14,6 +15,7 @@ trap on_err ERR
 PY="${PY:-$ROOT/.venv/bin/python}"
 [[ -x "$PY" ]] || { echo "Missing venv python: $PY" >&2; exit 2; }
 
+# write_file writes content to the specified path, creating parent directories as needed and printing a "WROTE" message with the written byte count.
 write_file() {
   local path="$1"
   "$PY" - <<PY

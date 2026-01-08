@@ -22,6 +22,21 @@ MS_PER_DAY = 24 * 60 * 60 * 1000
 SEC_PER_MIN = 60
 
 def fetch_ohlc_kraken(pair: str, interval_min: int, days: int) -> list[list[float]]:
+    """
+    Fetch OHLC candles from Kraken for a given trading pair and lookback window, returning normalized, deduplicated candle rows.
+    
+    Parameters:
+        pair (str): Kraken asset pair symbol (e.g., "XBTUSD").
+        interval_min (int): Candle interval in minutes.
+        days (int): Number of days of historical data to fetch (lookback window).
+    
+    Returns:
+        list[list[float]]: A list of candles sorted by timestamp ascending and deduplicated. Each candle is a list in the form
+            [timestamp_ms, open, high, low, close, volume].
+    
+    Raises:
+        RuntimeError: If an HTTP request fails or the Kraken API returns an error.
+    """
     now_ms = int(time.time() * 1000)
     since_ms = now_ms - days * MS_PER_DAY
 
@@ -107,6 +122,14 @@ def fetch_ohlc_kraken(pair: str, interval_min: int, days: int) -> list[list[floa
     return out
 
 def main() -> int:
+    """
+    Fetch OHLC candles for the configured pair and interval, write them to a JSON file under OUTDIR, and report status.
+    
+    Writes a file named kraken_BTC_USD_<interval>m_<start_ts>_<end_ts>.json containing the fetched candles and prints progress or error messages.
+    
+    Returns:
+        int: 0 on success, 1 if no candles were fetched.
+    """
     days = 90
     rows = fetch_ohlc_kraken(PAIR, INTERVAL_MIN, days)
     if not rows:

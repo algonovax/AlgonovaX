@@ -16,6 +16,24 @@ def generate_signal(
     rsi_overbought: float = 70.0,
     rsi_oversold: float = 30.0,
 ) -> Signal:
+    """
+    Compute an EMA+RSI trading signal from historical close prices.
+    
+    Parameters:
+        df (pd.DataFrame): Input price history; must contain a "close" column.
+        ema_short (int): Span for the short exponential moving average.
+        ema_long (int): Span for the long exponential moving average.
+        rsi_n (int): Window length used to compute RSI.
+        rsi_overbought (float): RSI threshold above which the market is considered overbought.
+        rsi_oversold (float): RSI threshold below which the market is considered oversold.
+    
+    Returns:
+        Signal: A Signal object with Side set to:
+          - `BUY` when short EMA > long EMA and RSI is below `rsi_overbought`.
+          - `SELL` when short EMA < long EMA and RSI is above `rsi_oversold`.
+          - `HOLD` when the DataFrame is empty, required columns are missing, indicators are in warmup, no setup is detected, or an error occurred.
+        The Signal includes a numeric confidence and a short reason string describing the decision.
+    """
     try:
         if df is None or df.empty:
             return Signal(Side.HOLD, 0.0, "empty_df")

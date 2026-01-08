@@ -4,6 +4,7 @@ set -euo pipefail
 PROJECT_DIR="${ALGONOVAX_PROJECT_DIR:-$HOME/projects/AlgonovaX}"
 APP_PY="$PROJECT_DIR/algonovax/gui/app.py"
 
+# die prints an error message composed from its arguments to stderr and exits with status 1.
 die() { echo "ERROR: $*" >&2; exit 1; }
 
 [ -d "$PROJECT_DIR" ] || die "Project dir not found: $PROJECT_DIR"

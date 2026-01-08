@@ -19,18 +19,62 @@ REPORT_PATH = ROOT / "data" / "backtest_report.json"
 MS_PER_DAY = 24 * 60 * 60 * 1000
 
 def senv(k: str, d: str) -> str:
+    """
+    Get an environment variable's trimmed value or a default when the variable is unset or empty.
+    
+    Parameters:
+        k (str): Environment variable name to read.
+        d (str): Default string to return if the environment variable is missing or empty.
+    
+    Returns:
+        str: The environment variable's value with surrounding whitespace removed, or `d` if the variable is unset or contains only whitespace.
+    """
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else v.strip()
 
 def ienv(k: str, d: int) -> int:
+    """
+    Get an environment variable interpreted as an integer, or return a default.
+    
+    Parameters:
+        k (str): Name of the environment variable to read.
+        d (int): Default integer to return when the environment variable is unset or empty.
+    
+    Returns:
+        int: The integer parsed from the environment variable, or `d` if the variable is missing or an empty string.
+    
+    Raises:
+        ValueError: If the environment variable is present but cannot be parsed as an integer.
+    """
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else int(v)
 
 def fenv(k: str, d: float) -> float:
+    """
+    Return the value of the environment variable named by `k` parsed as a float, or `d` if the variable is missing or empty.
+    
+    Parameters:
+        k (str): Name of the environment variable to read.
+        d (float): Default value returned when the environment variable is not set or is an empty string.
+    
+    Returns:
+        float: The parsed float value of the environment variable, or `d` if unset/empty.
+    """
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else float(v)
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    """
+    Read a newline-delimited JSON (JSONL) file and return a list of parsed records.
+    
+    Empty lines and lines that fail JSON parsing are skipped. If the file does not exist or is empty, an empty list is returned.
+    
+    Parameters:
+        path (Path): Path to the JSONL file.
+    
+    Returns:
+        list[dict[str, Any]]: Parsed JSON objects, one per successfully parsed non-empty line.
+    """
     if not path.exists() or path.stat().st_size == 0:
         return []
     out: list[dict[str, Any]] = []
@@ -45,11 +89,35 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return out
 
 def append_jsonl(path: Path, rec: dict[str, Any]) -> None:
+    """
+    Append a JSON-serializable record as a single line to a JSONL file, creating parent directories if necessary.
+    
+    Parameters:
+        path (Path): Filesystem path of the JSONL file to append to.
+        rec (dict[str, Any]): Record to serialize as a single JSON line.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
 def candle_ts_range(candle_file: Path) -> tuple[int, int, int]:
+    """
+    Return the start timestamp, end timestamp, and number of candles parsed from a candle JSON file.
+    
+    The file must contain either a top-level list of candle entries or an object with a "candles" list. Each candle entry is expected to have the timestamp as its first element.
+    
+    Parameters:
+    	candle_file (Path): Path to the JSON file containing candle data.
+    
+    Returns:
+    	(start_timestamp, end_timestamp, count) (tuple[int, int, int]): 
+    		start_timestamp: timestamp of the first candle,
+    		end_timestamp: timestamp of the last candle,
+    		count: number of candles parsed.
+    
+    Raises:
+    	ValueError: If the file does not contain a non-empty list of candles.
+    """
     data = json.loads(candle_file.read_text(encoding="utf-8"))
     if isinstance(data, dict) and "candles" in data:
         data = data["candles"]
@@ -60,6 +128,20 @@ def candle_ts_range(candle_file: Path) -> tuple[int, int, int]:
     return ts0, ts1, len(data)
 
 def run_backtest(env: dict[str, str]) -> dict[str, Any]:
+    """
+    Run the backtest script with the given environment and collect execution results and the generated report.
+    
+    Parameters:
+        env (dict[str, str]): Environment variables to use for the backtest process.
+    
+    Returns:
+        result (dict[str, Any]): A dictionary with the following keys:
+            - `rc` (int): The subprocess exit code.
+            - `elapsed_ms` (int): Wall-clock time the run took in milliseconds.
+            - `stdout_tail` (str): Last up to 1200 characters of the process stdout.
+            - `stderr_tail` (str): Last up to 1200 characters of the process stderr.
+            - `report` (dict[str, Any]): Parsed JSON report loaded from the report file if present and valid, otherwise an empty dict.
+    """
     try:
         if REPORT_PATH.exists():
             REPORT_PATH.unlink()
@@ -94,6 +176,17 @@ def run_backtest(env: dict[str, str]) -> dict[str, Any]:
     }
 
 def main() -> int:
+    """
+    Run evaluation backtests for the top trained candidates for a specified candle file and append per-candidate evaluation records.
+    
+    This function:
+    - Reads candidates from the configured candidates.jsonl, selects those with phase "train" that match the CANDLE_FILE environment variable, sorts them by training PnL, and evaluates the top N (controlled by --top).
+    - For each selected candidate it runs the backtest subprocess with a prepared environment, extracts metrics (trades, pnl, max drawdown), applies pass/fail gates, and appends a detailed evaluation record to the evaluations JSONL file.
+    - Prints progress and summary lines to stdout/stderr.
+    
+    Returns:
+        int: Exit code. `0` on normal completion or when there are no candidates to evaluate; `2` if CANDLE_FILE is missing or not found.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("--top", type=int, default=8)
     args = ap.parse_args()
@@ -130,6 +223,15 @@ def main() -> int:
         return 0
 
     def train_score(r: dict[str, Any]) -> float:
+        """
+        Extracts the profit-and-loss (pnl) value from a candidate record's report.
+        
+        Parameters:
+            r (dict): Candidate record expected to contain a "report" mapping which may include a "pnl" value.
+        
+        Returns:
+            The `pnl` value as a float, or -1e18 when the value is missing or cannot be parsed as a float.
+        """
         rep = r.get("report") or {}
         try:
             return float(rep.get("pnl", -1e18))

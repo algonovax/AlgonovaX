@@ -23,6 +23,15 @@ class Trade:
 
 
 def to_jsonable(x: Any) -> Any:
+    """
+    Convert an arbitrary Python object into a JSON-serializable form.
+    
+    Parameters:
+        x (Any): The value to convert.
+    
+    Returns:
+        Any: A JSON-serializable representation of `x`. Primitive types (str, int, float, bool, None) are returned unchanged; dicts and lists are converted recursively; objects with a `__dict__` are converted to a dict of their attributes (recursively); all other values are converted to their string representation.
+    """
     if isinstance(x, (str, int, float, bool)) or x is None:
         return x
     if isinstance(x, dict):
@@ -35,6 +44,19 @@ def to_jsonable(x: Any) -> Any:
 
 
 def load_ohlcv_json(path) -> List[List[float]]:
+    """
+    Load OHLCV candle data from a JSON file.
+    
+    Parameters:
+        path (str | os.PathLike): File path to a JSON file containing a non-empty list of candle rows.
+    
+    Returns:
+        List[List[float]]: List of candles where each row is expected to be
+        [timestamp_ms, open, high, low, close, volume].
+    
+    Raises:
+        ValueError: If the file does not contain a non-empty JSON list of candles.
+    """
     import json
     from pathlib import Path as _P
     p = _P(path)
@@ -46,6 +68,15 @@ def load_ohlcv_json(path) -> List[List[float]]:
 
 
 def _as_series(xs: Any) -> "pd.Series":
+    """
+    Coerce the input into a pandas Series with dtype float64.
+    
+    Parameters:
+        xs (Any): A pandas Series or any sequence/iterable of numeric-like values.
+    
+    Returns:
+        pd.Series: The input as a pandas Series with dtype float64; if `xs` is already a Series it is returned unchanged.
+    """
     if isinstance(xs, pd.Series):
         return xs
     return pd.Series(list(xs), dtype="float64")
@@ -53,14 +84,16 @@ def _as_series(xs: Any) -> "pd.Series":
 
 def _normalize_signal(sig: Any, n: int) -> List[int]:
     """
-    Normalize strategy output into a list[int] length n with:
-      1 => long entry signal
-      0 => no entry
-    Supports:
-      - list/tuple of ints/bools
-      - pandas Series
-      - objects with .side/.signal/.values/.to_list
-      - enums Side with values like 'LONG'/'BUY'/1
+    Normalize various strategy signal representations into a list of entry flags.
+    
+    Accepts lists/tuples, pandas Series, objects exposing attributes named 'side', 'signal', 'values', or 'sides', objects with `to_list`/`tolist` methods, or a scalar (interpreted as a signal for the latest index only). Values that are non-zero integers/bools or strings containing "LONG" or "BUY" are treated as entry signals.
+    
+    Parameters:
+        sig (Any): Strategy output in one of the supported forms.
+        n (int): Desired length of the output list; results are padded with zeros or truncated to this length.
+    
+    Returns:
+        List[int]: Length `n` list where `1` indicates a long entry signal and `0` indicates no entry.
     """
     try:
         import pandas as pd  # local
@@ -68,6 +101,17 @@ def _normalize_signal(sig: Any, n: int) -> List[int]:
         pd = None
 
     def to_int(v: Any) -> int:
+        """
+        Determine whether an arbitrary value represents a long/buy signal.
+        
+        Interprets the input as a signal candidate and returns 1 for a long/buy signal or 0 otherwise. Recognizes common representations such as booleans/integers (non-zero), textual indicators containing "LONG" or "BUY", and numeric-like values.
+        
+        Parameters:
+        	v (Any): Value to interpret as a trading signal.
+        
+        Returns:
+        	int: `1` if `v` represents a long/buy signal, `0` otherwise.
+        """
         if v is None:
             return 0
         if isinstance(v, (int, bool)):
@@ -126,11 +170,26 @@ def run_backtest_atr_exits(
     cooldown_bars: int,
 ) -> Tuple[Dict[str, Any], List[Trade]]:
     """
-    Long-only backtest:
-      - enter on signal==1 at close*(1+slippage)
-      - exit on stop (low<=stop) or takeprofit (high>=tp)
-      - fees applied on notional at entry and exit: fee_rate*(entry_notional+exit_notional)
-      - cooldown after exit
+    Run a long-only backtest using ATR-based stops and take-profits.
+    
+    Parameters:
+        candles (List[List[float]]): OHLCV rows as [ts_ms, open, high, low, close, volume].
+        symbol (str): Instrument identifier for the report.
+        timeframe (str): Timeframe identifier for the report.
+        strategy (Callable[[Any, Any, Any], Any]): Function producing entry signals from (highs, lows, closes). Its output may be a list/series/scalar and will be normalized so that `1` means enter long at that bar.
+        atr_value (Callable[[Any, Any, Any], Any]): Function producing ATR-like values from (highs, lows, closes); values must be positive and are used to size the stop and take-profit distances.
+        fee_rate (float): Proportional fee applied to traded notional at entry and exit (e.g., 0.001 = 0.1%).
+        slippage_rate (float): Proportional execution slippage applied to entry and exit prices (e.g., 0.001 = 0.1%).
+        stake_quote (float): Quote-currency amount allocated per trade to size the position (qty = stake_quote / entry_price).
+        stop_atr_mult (float): Multiplier of ATR subtracted from entry price to compute the stop level.
+        tp_atr_mult (float): Multiplier of ATR added to entry price to compute the take-profit level.
+        min_hold_bars (int): Minimum number of bars to hold a position before allowing exits.
+        cooldown_bars (int): Number of bars to wait after an exit before entering a new trade.
+    
+    Returns:
+        Tuple[Dict[str, Any], List[Trade]]: A tuple where the first element is a report dictionary containing summary metrics
+        ("symbol", "timeframe", "start_ts", "end_ts", "trades", "wins", "losses", "net_pnl_quote", "max_drawdown_quote"),
+        and the second element is the list of executed Trade records (entry/exit timestamps, prices, quantity, pnl, and reason).
     """
     if not candles:
         raise ValueError("No candles")

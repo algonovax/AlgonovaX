@@ -17,6 +17,20 @@ class Candle:
     v: float
 
 def load_kraken_ohlcv_json(path: Path) -> list[Candle]:
+    """
+    Load OHLCV candles from a Kraken-style JSON file accepting either list-of-arrays or list-of-dicts formats.
+    
+    Parameters:
+        path (Path): Path to a UTF-8 encoded JSON file. Each top-level item must be either:
+            - a list/array with at least six elements [ts, open, high, low, close, volume, ...], or
+            - a mapping containing timestamp under "ts", "timestamp", or "time" and price/volume under "open", "high", "low", "close", "volume".
+    
+    Returns:
+        list[Candle]: Parsed and validated Candle objects sorted by timestamp in ascending order.
+    
+    Raises:
+        RuntimeError: If the file cannot be read, parsed, contains no valid candles, or any other error occurs while loading.
+    """
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(raw, list):
@@ -54,6 +68,21 @@ class BacktestResult:
     max_drawdown_quote: float
 
 def to_jsonable(res: BacktestResult) -> dict[str, Any]:
+    """
+    Convert a BacktestResult into a JSON-serializable dictionary.
+    
+    Returns:
+        dict: A mapping with keys:
+            - "symbol": symbol of the instrument (str)
+            - "timeframe": timeframe identifier (str)
+            - "start_ts": start timestamp of the backtest (int)
+            - "end_ts": end timestamp of the backtest (int)
+            - "trades": total number of trades executed (int)
+            - "wins": number of winning trades (int)
+            - "losses": number of losing trades (int)
+            - "net_pnl_quote": net profit and loss in quote currency (float)
+            - "max_drawdown_quote": maximum drawdown in quote currency (float)
+    """
     return {
         "symbol": res.symbol,
         "timeframe": res.timeframe,
@@ -94,6 +123,26 @@ def run_backtest_atr_exits(
     min_hold_bars: int = 6,
     cooldown_bars: int = 6,
 ) -> tuple[BacktestResult, list[Trade]]:
+    """
+    Run an ATR-based backtest that entries on a strategy signal and exits by ATR stop, take-profit, or sell signal.
+    
+    Parameters:
+        candles (list[Candle]): Sequential candlesticks to backtest.
+        symbol (str): Asset symbol recorded in the result.
+        timeframe (str): Timeframe label recorded in the result.
+        strategy (StrategyFn): Signal function returning "BUY", "SELL", or "HOLD".
+        atr_value (ATRFn): Function that computes ATR from highs, lows, closes.
+        fee_rate (float): Per-side fee rate applied to stake at entry and exit.
+        slippage_rate (float): Per-side slippage applied to entry and exit prices.
+        stake_quote (float): Quote currency stake sized per trade.
+        stop_atr_mult (float): ATR multiplier used to compute the stop-loss below entry.
+        tp_atr_mult (float): ATR multiplier used to compute the take-profit above entry.
+        min_hold_bars (int): Minimum number of bars to hold a position before allowing signal exits.
+        cooldown_bars (int): Bars to wait after an exit before allowing a new entry.
+    
+    Returns:
+        tuple[BacktestResult, list[Trade]]: A BacktestResult summarizing performance and a ledger of Trade records.
+    """
     highs: list[float] = []
     lows: list[float] = []
     closes: list[float] = []

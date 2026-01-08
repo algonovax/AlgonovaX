@@ -15,6 +15,29 @@ from .types import Signal, Side
 
 
 def generate_signal(df: pd.DataFrame, fast: int = 20, slow: int = 50) -> Signal:
+    """
+    Generate a trading Signal based on a fast/slow SMA crossover using the DataFrame's `close` series.
+    
+    Parameters:
+        df (pd.DataFrame): Price data containing a `close` column.
+        fast (int): Window length for the fast SMA.
+        slow (int): Window length for the slow SMA.
+    
+    Returns:
+        Signal: A Signal with Side in {BUY, SELL, HOLD}, a confidence score, and a reason string.
+            Known reason values include:
+                - "empty_df" (input is None or empty)
+                - "missing_close" (no `close` column)
+                - "insufficient_bars" (fewer than max(fast, slow) + 2 bars)
+                - "warmup" (recent SMA values are NaN)
+                - "sma_cross_up fast={fast} slow={slow}" (fast crossed above slow; BUY, confidence 0.65)
+                - "sma_cross_down fast={fast} slow={slow}" (fast crossed below slow; SELL, confidence 0.65)
+                - "no_cross" (no crossover detected; HOLD)
+                - "error:Exception" (an error occurred; HOLD)
+    
+    Raises:
+        Exception: Re-raises any unexpected exception if the environment variable ALGONOVAX_FAIL_FAST is "1".
+    """
     try:
         if df is None or df.empty:
             return Signal(Side.HOLD, 0.0, "empty_df")

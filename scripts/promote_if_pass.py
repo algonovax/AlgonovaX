@@ -6,12 +6,30 @@ EVAL_PATH = Path("data/registry/evaluations.jsonl")
 OUT_PATH  = Path("data/registry/passing.jsonl")
 
 def _f(x, default=0.0):
+    """
+    Convert a value to float, returning a fallback on error.
+    
+    Parameters:
+        x: The value to convert to float.
+        default (float): Fallback numeric value used when conversion fails.
+    
+    Returns:
+        float: The converted float value of `x`, or `default` converted to float if conversion raises an exception.
+    """
     try:
         return float(x)
     except Exception:
         return float(default)
 
 def main() -> int:
+    """
+    Selects an evaluation that satisfies promotion gates and appends it to the passing registry.
+    
+    Reads evaluation records from EVAL_PATH, filters to those with phase "eval", applies promotion gates configured via environment variables (PROMOTE_MIN_TRADES, PROMOTE_MIN_PNL, PROMOTE_MAX_DD_PCT), and if any records pass, writes the highest-pnl passing record to OUT_PATH and prints a promotion summary; if none pass, prints diagnostic information and exits without writing.
+    
+    Returns:
+        int: 0 on completion.
+    """
     if not EVAL_PATH.exists():
         print("No evaluations found. Run evaluate_candidate.py first.")
         return 0

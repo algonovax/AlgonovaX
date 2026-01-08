@@ -11,6 +11,19 @@ from .engine import run_loop
 
 
 def _apply_overrides(settings, host: str | None, port: int | None):
+    """
+    Return a settings object with host and/or port values overridden when provided.
+    
+    If both `host` and `port` are None, the original `settings` object is returned unchanged.
+    
+    Parameters:
+        settings: The settings dataclass instance to base the result on.
+        host (str | None): Optional host override; when provided, replaces the `host` value in the returned settings.
+        port (int | None): Optional port override; when provided, replaces the `port` value in the returned settings.
+    
+    Returns:
+        A new settings instance (same type as `settings`) with `host` and `port` replaced by the provided overrides when present; other fields are preserved.
+    """
     if host is None and port is None:
         return settings
     # dataclass is frozen; rebuild safely
@@ -33,6 +46,20 @@ def _apply_overrides(settings, host: str | None, port: int | None):
 
 
 def main() -> int:
+    """
+    Parse command-line arguments and dispatch the requested subcommand to either start the ASGI server or run the engine loop, returning a process exit code.
+    
+    Supports two subcommands:
+    - "serve": loads settings (with optional --host and --port overrides) and starts the ASGI application via uvicorn.
+    - "engine": loads settings and runs the engine loop (blocking).
+    
+    Returns:
+        int: Exit code where
+            0   = successful execution of the chosen subcommand,
+            2   = unknown or missing subcommand,
+            130 = interrupted by KeyboardInterrupt,
+            1   = fatal error occurred (logged to stderr).
+    """
     p = argparse.ArgumentParser(prog="algonovax")
     sub = p.add_subparsers(dest="cmd", required=True)
 

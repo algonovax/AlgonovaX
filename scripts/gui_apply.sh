@@ -7,6 +7,7 @@ DST="algonovax/gui/app.py"
 SVC="algonovax-gui.service"
 PY="$HOME/projects/AlgonovaX/.venv/bin/python"
 
+# die prints an error message prefixed with "ERROR:" to stderr and exits with status 1.
 die(){ echo "ERROR: $*" >&2; exit 1; }
 trap 'die "Failed at line $LINENO"' ERR
 

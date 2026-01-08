@@ -12,8 +12,10 @@ REPORT_DIR="$ROOT/data"
 REPORT_JSON="$REPORT_DIR/audit_report.json"
 mkdir -p "$REPORT_DIR"
 
+# ts prints the current UTC timestamp in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ).
 ts() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 
+# on_err reports the failing exit code, line number, and command plus root, exchange, mode, and python path to stderr, then exits with that code.
 on_err() {
   local ec=$?
   echo "AUDIT_CRASH exit_code=$ec line=${BASH_LINENO[0]} cmd=${BASH_COMMAND}" >&2
@@ -22,7 +24,9 @@ on_err() {
 }
 trap on_err ERR
 
+# fail prints an error message prefixed with AUDIT_FAIL to stderr and exits with status 1.
 fail() { echo "AUDIT_FAIL: $*" >&2; exit 1; }
+# need ensures the named command exists in PATH and calls fail (exiting the script) with an error if it is not found.
 need() { command -v "$1" >/dev/null 2>&1 || fail "Missing command: $1"; }
 
 echo "== AlgoNovaX LIVE READINESS AUDIT =="

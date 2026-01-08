@@ -13,19 +13,56 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "data" / "candles"
 
 def senv(name: str, default: str) -> str:
+    """
+    Read an environment variable and return a fallback when it's missing or empty.
+    
+    Parameters:
+    	name: The environment variable name to read.
+    	default: The fallback value to return if the environment variable is missing or contains only whitespace.
+    
+    Returns:
+    	`default` if the environment variable is not set or is empty/whitespace after trimming, otherwise the environment value with surrounding whitespace removed.
+    """
     v = os.environ.get(name)
     return default if v is None or v.strip() == "" else v.strip()
 
 def ienv(name: str, default: int) -> int:
+    """
+    Read an environment variable and return its integer value, using a default when the variable is missing or empty.
+    
+    Parameters:
+        name (str): Environment variable name to read.
+        default (int): Integer to return if the environment variable is missing or contains only whitespace.
+    
+    Returns:
+        int: The integer parsed from the environment variable, or `default` if the variable is not set or is empty/whitespace.
+    """
     v = os.environ.get(name)
     if v is None or v.strip() == "":
         return default
     return int(v)
 
 def symbol_to_fs(symbol: str) -> str:
+    """
+    Convert a trading symbol into a filesystem-friendly identifier.
+    
+    Parameters:
+        symbol (str): Trading symbol (e.g., "BTC/USD" or "ETH-USD").
+    
+    Returns:
+        fs_symbol (str): Uppercase symbol with "/" and "-" replaced by "_" (e.g., "BTC_USD").
+    """
     return symbol.replace("/", "_").replace("-", "_").upper()
 
 def main() -> int:
+    """
+    Fetches historical OHLCV candles from Kraken for a configured symbol and timeframe and saves them to a JSON file.
+    
+    Reads configuration from environment variables: `SYMBOL` (default "BTC/USD"), `TIMEFRAME` (default "5m"), and `DAYS` (default 30). Accumulates and deduplicates fetched candles, requires at least 1000 candles, creates the output directory if needed, and writes the collected candles to a JSON file whose name encodes the symbol, timeframe, and timestamp range.
+    
+    Returns:
+        int: `0` on success (file written), `1` if fewer than 1000 candles were fetched.
+    """
     symbol = senv("SYMBOL", "BTC/USD")
     timeframe = senv("TIMEFRAME", "5m")
     days = ienv("DAYS", 30)

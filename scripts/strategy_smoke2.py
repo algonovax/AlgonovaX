@@ -10,6 +10,15 @@ import algonovax.strategies as strategies
 
 
 def make_df(n: int = 600) -> pd.DataFrame:
+    """
+    Create a synthetic OHLCV DataFrame with n rows for testing or strategy smoke runs.
+    
+    Parameters:
+        n (int): Number of rows to generate.
+    
+    Returns:
+        pd.DataFrame: DataFrame with columns `open`, `high`, `low`, `close`, and `volume`. `close` is a repeating sequence 100 + (i % 7), `open` is the previous `close` (first `open` equals first `close`), `high` is max(open, close) + 0.5, `low` is min(open, close) - 0.5, and `volume` is constant 1000.0.
+    """
     close = np.array([100 + (i % 7) for i in range(n)], dtype=float)
     open_ = np.roll(close, 1)
     open_[0] = close[0]
@@ -20,6 +29,14 @@ def make_df(n: int = 600) -> pd.DataFrame:
 
 
 def main() -> int:
+    """
+    Runs generate_signal across strategy modules and reports failures.
+    
+    Discovers modules under algonovax.strategies, invokes each module's generate_signal with a synthetic OHLCV DataFrame, prints the module name with the returned `side` and `reason`, and records failures when `reason` is a string starting with "error:" or when invocation raises an exception.
+    
+    Returns:
+        int: `0` if no failures were detected, `1` if one or more failures were recorded.
+    """
     df = make_df()
 
     failures: list[str] = []

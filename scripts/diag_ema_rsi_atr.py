@@ -8,11 +8,23 @@ from algonovax.strategies.indicators import ema, rsi
 
 
 def die(msg: str, code: int = 2) -> None:
+    """
+    Print a diagnostic failure message to stderr and terminate the process with the given exit code.
+    
+    Parameters:
+        msg (str): Message to include in the diagnostic failure output.
+        code (int): Exit code to terminate the process with (default 2).
+    """
     print(f"DIAG_FAIL: {msg}", file=sys.stderr)
     raise SystemExit(code)
 
 
 def main():
+    """
+    Run the diagnostic analysis: load candles, compute EMAs and RSI, evaluate buy gates, and print summary metrics.
+    
+    Reads the path from the CANDLES_JSON environment variable and other optional environment settings (TREND_EMA, FAST_EMA, RSI_N, RSI_BUY). Loads candle data, computes trend and fast EMAs and RSI, discards an initial warmup period, validates remaining rows, then computes RSI statistics, gate indicators (long_regime, rsi_rebound, fast_ok), aggregate counts, combinations, and closest misses; prints these metrics to stdout. Exits the process via die(...) if required environment variables are missing, the data is empty, or there are too few rows after warmup.
+    """
     path = os.getenv("CANDLES_JSON")
     if not path:
         die("Set CANDLES_JSON")

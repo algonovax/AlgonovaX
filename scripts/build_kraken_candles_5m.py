@@ -12,11 +12,34 @@ OUT_DIR = ROOT / "data" / "candles"
 
 
 def senv(name: str, default: str) -> str:
+    """
+    Retrieve an environment variable's trimmed value or return a default when it is missing or blank.
+    
+    Parameters:
+        name (str): The environment variable name to read.
+        default (str): The fallback value returned when the environment variable is not set or is empty/whitespace.
+    
+    Returns:
+        value (str): The environment variable's value with surrounding whitespace removed, or `default` if the variable is missing or blank.
+    """
     v = os.environ.get(name)
     return default if v is None or v.strip() == "" else v.strip()
 
 
 def ienv(name: str, default: int) -> int:
+    """
+    Get an environment variable by name and return its integer value, falling back to `default` when the variable is missing or empty.
+    
+    Parameters:
+        name (str): Environment variable name to read.
+        default (int): Value to return when the variable is not set or is blank.
+    
+    Returns:
+        int: The integer parsed from the environment variable, or `default` if the variable is missing or empty.
+    
+    Raises:
+        ValueError: If the environment variable is present but cannot be converted to an integer.
+    """
     v = os.environ.get(name)
     if v is None or v.strip() == "":
         return default
@@ -24,10 +47,39 @@ def ienv(name: str, default: int) -> int:
 
 
 def symbol_to_fs(symbol: str) -> str:
+    """
+    Convert a trading symbol into a filesystem-friendly string.
+    
+    Parameters:
+        symbol (str): Trading symbol (e.g., "btc/usd" or "BTC-USD").
+    
+    Returns:
+        str: The input symbol with '/' and '-' replaced by '_' and converted to upper case (e.g., "BTC_USD").
+    """
     return symbol.replace("/", "_").replace("-", "_").upper()
 
 
 def parse_trade(t: Any) -> Tuple[int, float, float]:
+    """
+    Normalize a trade record into a (timestamp, price, volume) triple.
+    
+    Accepts either a sequence (list/tuple with at least three elements) where the
+    first three entries are timestamp, price, and volume, or a mapping with keys
+    for timestamp ("timestamp", "time", "ts", "t"), price ("price", "p"), and
+    volume ("amount", "volume", "qty", "v"). If volume is missing in a mapping,
+    it defaults to 0.0.
+    
+    Parameters:
+        t (Any): Trade data as a sequence or mapping.
+    
+    Returns:
+        Tuple[int, float, float]: (timestamp_ms, price, volume) with timestamp
+        converted to int and price/volume converted to float.
+    
+    Raises:
+        ValueError: If a mapping is missing a timestamp or price.
+        TypeError: If the input is neither a supported sequence nor mapping.
+    """
     if isinstance(t, (list, tuple)) and len(t) >= 3:
         return int(t[0]), float(t[1]), float(t[2])
 
@@ -47,10 +99,32 @@ def parse_trade(t: Any) -> Tuple[int, float, float]:
 
 
 def floor_ts(ts_ms: int, tf_ms: int) -> int:
+    """
+    Floor a millisecond timestamp down to the nearest multiple of a timeframe.
+    
+    Parameters:
+    	ts_ms (int): Timestamp in milliseconds to be floored.
+    	tf_ms (int): Timeframe length in milliseconds used as the bucket size.
+    
+    Returns:
+    	floored_ts (int): The largest multiple of `tf_ms` that is less than or equal to `ts_ms`, expressed in milliseconds.
+    """
     return (ts_ms // tf_ms) * tf_ms
 
 
 def build_ohlcv(trades: List[Any], timeframe_ms: int) -> List[List[float]]:
+    """
+    Aggregate a sequence of trades into time-bucketed OHLCV candles.
+    
+    Parameters:
+        trades (List[Any]): Sequence of trade records. Each trade must provide a timestamp, a price, and a volume.
+        timeframe_ms (int): Timeframe length in milliseconds used to bucket trades.
+    
+    Returns:
+        List[List[float]]: Ordered list of candles, each formatted as
+            [bucket_start_ts, open, high, low, close, volume]
+            where `bucket_start_ts` is an integer timestamp (ms) for the bucket start and the remaining values are floats.
+    """
     buckets: Dict[int, List[Tuple[int, float, float]]] = {}
 
     for tr in trades:
@@ -72,6 +146,14 @@ def build_ohlcv(trades: List[Any], timeframe_ms: int) -> List[List[float]]:
 
 
 def main() -> int:
+    """
+    Build OHLCV candles from a trades JSON file and write them to the data/candles directory.
+    
+    Reads configuration from environment (TRADES_FILE required; EXCHANGE, SYMBOL, TIMEFRAME, TF_MS optional), loads trades from the specified JSON (either a top-level list or a dict containing a list under "trades", "data", or "result"), validates there are at least 1000 trades and that build_ohlcv produces at least 1000 candles, writes the resulting candles as pretty-printed JSON to data/candles with a filename derived from exchange, symbol, timeframe, and start/end timestamps, and prints a summary.
+    
+    Returns:
+        int: Exit code: `0` on success, `1` on error. Error conditions include missing TRADES_FILE, missing or unreadable trades file, malformed JSON, JSON not containing a trades list, fewer than 1000 trades, or fewer than 1000 resulting candles.
+    """
     trades_file = senv("TRADES_FILE", "")
     if not trades_file:
         print("ERROR: TRADES_FILE env var is required (path to trades json)")

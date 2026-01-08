@@ -12,6 +12,14 @@ BT = ROOT / "scripts" / "backtest_kraken_5m.py"
 REPORT = ROOT / "data" / "backtest_report.json"
 
 def main() -> int:
+    """
+    Run a parameter sweep of fee and slippage rates, execute backtests, and print a CSV summary of results.
+    
+    Reads CANDLE_FILE from the environment (must be set) and sets TEST_DAYS to "15" if not provided. Iterates over predefined fee and slippage grids, runs the backtest script for each combination, and for each successful run that produces a JSON report, prints a CSV line with: fee, slippage, trades, pnl, pnl per trade, and maximum drawdown percentage. Missing or unreadable reports are skipped.
+    
+    Returns:
+        int: Exit code: `0` on normal completion, `2` if CANDLE_FILE is not set.
+    """
     candle = os.environ.get("CANDLE_FILE", "").strip()
     if not candle:
         print("ERROR: CANDLE_FILE not set/exported", file=sys.stderr)

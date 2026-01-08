@@ -8,11 +8,30 @@ from algonovax.strategies.indicators import ema, rsi
 
 
 def die(msg: str, code: int = 2) -> None:
+    """
+    Print an error message prefixed with "DIAG_GATE_FAIL: " to standard error and terminate the process with the given exit code.
+    
+    Parameters:
+        msg (str): Error message to print.
+        code (int): Exit code to use when terminating the process (default 2).
+    
+    Raises:
+        SystemExit: Exits the process with the provided exit code.
+    """
     print(f"DIAG_GATE_FAIL: {msg}", file=sys.stderr)
     raise SystemExit(code)
 
 
 def main():
+    """
+    Compute EMA- and RSI-based buy-gate diagnostics from candle data and print summary statistics.
+    
+    Loads candle data from the file path specified by the CANDLES_JSON environment variable, reads EMA and RSI parameters from environment variables (TREND_EMA, FAST_EMA, RSI_N, RSI_ENTRY), computes trend and fast EMAs and the RSI, discards an initial warmup window, and derives three boolean gates: long_regime, fast_ok, and rsi_cross_up. Prints row counts, gate counts, and either up to 10 buy-gate indices (with close and RSI) when the combined gate (both long_regime & fast_ok plus RSI cross-up) is true, or a fallback metric showing the maximum RSI minus the entry threshold when no combined buy gates occur.
+    
+    Side effects:
+    - Prints diagnostic lines to standard output.
+    - Exits the process via die(...) if CANDLES_JSON is not set, the loaded DataFrame is empty, or there are fewer than 10 rows after warmup.
+    """
     path = os.getenv("CANDLES_JSON")
     if not path:
         die("Set CANDLES_JSON")

@@ -14,10 +14,30 @@ KILL_SWITCH_PATH = Path("data/KILL_SWITCH")
 STATE_PATH = "data/state.json"
 
 def log_event(event: dict[str, Any]) -> None:
+    """
+    Emit a structured event as a compact JSON line to stdout and ensure the logs directory exists.
+    
+    Parameters:
+        event (dict[str, Any]): Mapping containing event fields to be serialized as a single-line JSON record.
+    """
     Path("algonovax/logs").mkdir(parents=True, exist_ok=True)
     print(json.dumps(event, separators=(",", ":"), ensure_ascii=False), flush=True)
 
 def _select_feed(cfg: dict[str, Any]) -> Iterable[dict]:
+    """
+    Selects and returns a candle data feed according to the provided configuration.
+    
+    Parameters:
+        cfg (dict): Configuration specifying data feed selection. Recognized keys:
+            - "mode": "paper" or "live" to use the exchange OHLC feed; other values use a dummy feed.
+            - "pair": trading pair symbol (e.g., "XBT/USD").
+            - "data": optional dict with:
+                - "interval_min": candle interval in minutes (default 5).
+                - "poll_seconds": feed polling frequency in seconds (default 10).
+    
+    Returns:
+        Iterable[dict]: An iterable of candle dictionaries for the requested trading pair.
+    """
     mode = str(cfg.get("mode", "paper")).lower()
     pair = str(cfg.get("pair"))
     if mode in {"paper", "live"}:
@@ -27,6 +47,15 @@ def _select_feed(cfg: dict[str, Any]) -> Iterable[dict]:
     return dummy_candle_feed(pair)
 
 def _mark_to_market(st: EngineState, last_price: float) -> None:
+    """
+    Update the engine state with the current market price and recompute unrealized PnL and equity.
+    
+    This mutates `st` by setting `st.last_price`, recalculating `st.unrealized_pnl` (computed only when there is a long position with positive base quantity), and updating `st.equity` as the sum of cash and the market value of any long position.
+    
+    Parameters:
+        st (EngineState): Engine state to update.
+        last_price (float): Latest market price used for marking to market.
+    """
     st.last_price = last_price
     if st.position.side == "long" and st.position.qty_base > 0:
         st.unrealized_pnl = (last_price - st.position.entry_price) * st.position.qty_base
@@ -35,6 +64,20 @@ def _mark_to_market(st: EngineState, last_price: float) -> None:
     st.equity = st.cash_quote + (st.position.qty_base * last_price if st.position.side == "long" else 0.0)
 
 def _enter_long(st: EngineState, price: float, stake_quote: float, fee_rate: float, slippage_rate: float, ts: int) -> dict[str, Any]:
+    """
+    Attempt to open a long position using available quote-currency cash, applying slippage and fees.
+    
+    Parameters:
+        st (EngineState): Engine state mutated in-place to reflect the executed trade and updated mark-to-market.
+        price (float): Reference market price used to compute execution price before slippage.
+        stake_quote (float): Desired amount of quote currency to allocate to the purchase (will be clamped to available cash and >= 0).
+        fee_rate (float): Proportional fee rate applied to the trade notional (e.g., 0.001 for 0.1%).
+        slippage_rate (float): Proportional slippage applied to the reference price for execution.
+        ts (int): Timestamp to attach to the returned trade record.
+    
+    Returns:
+        dict: On success, `{"ok": True, "side": "buy", "price": exec_price, "qty_base": qty, "fee_quote": fee, "ts": ts}` where `exec_price` is the post-slippage execution price, `qty_base` is purchased base-asset quantity, and `fee` is the fee charged in quote currency. On failure, `{"ok": False, "reason": "insufficient_cash_or_qty", "exec_price": exec_price, "stake": stake}`.
+    """
     exec_price = apply_slippage(price, "buy", slippage_rate)
     stake = min(max(0.0, stake_quote), st.cash_quote)
     qty = 0.0 if exec_price <= 0 else (stake / exec_price)
@@ -52,6 +95,30 @@ def _enter_long(st: EngineState, price: float, stake_quote: float, fee_rate: flo
     return {"ok": True, "side": "buy", "price": exec_price, "qty_base": qty, "fee_quote": fee, "ts": ts}
 
 def _exit_long(st: EngineState, price: float, fee_rate: float, slippage_rate: float, ts: int) -> dict[str, Any]:
+    """
+    Close an existing long position, apply slippage and fees, realize profit/loss, and update the engine state.
+    
+    On success, returns a dictionary with trade details and updates st.cash_quote, st.realized_pnl, st.position (set to flat), and the mark-to-market price. If no long position exists, returns {"ok": False, "reason": "no_position"}.
+    
+    Parameters:
+        st (EngineState): Engine state to modify.
+        price (float): Observed exit price before slippage.
+        fee_rate (float): Fee rate applied to the notional (quote) value.
+        slippage_rate (float): Slippage rate applied to the exit price.
+        ts (int): Timestamp for the executed trade.
+    
+    Returns:
+        dict: On success: {
+            "ok": True,
+            "side": "sell",
+            "price": float,       # execution price after slippage
+            "qty_base": float,    # base-asset quantity sold
+            "fee_quote": float,   # fee charged in quote currency
+            "pnl": float,         # realized profit or loss in quote currency (after fee)
+            "ts": int
+        }
+        On failure (no long position): {"ok": False, "reason": "no_position"}.
+    """
     if st.position.side != "long" or st.position.qty_base <= 0:
         return {"ok": False, "reason": "no_position"}
 
@@ -71,6 +138,26 @@ def _exit_long(st: EngineState, price: float, fee_rate: float, slippage_rate: fl
     return {"ok": True, "side": "sell", "price": exec_price, "qty_base": qty, "fee_quote": fee, "pnl": pnl, "ts": ts}
 
 def run(cfg: dict[str, Any], strategy) -> int:
+    """
+    Run the trading engine loop using the provided configuration and strategy.
+    
+    Parameters:
+        cfg (dict[str, Any]): Runtime configuration for the engine. Recognized keys include:
+            - "mode": "paper" or "live" (default "paper").
+            - "pair": trading pair identifier.
+            - "paper": dict with "starting_cash_quote" and "stake_quote".
+            - "costs": dict with "fee_rate" and "slippage_rate".
+            - "risk": dict with "max_position_pct", "max_risk_pct", "max_daily_drawdown_pct".
+            - "engine": dict with "poll_seconds".
+        strategy: An object implementing lifecycle hooks used by the engine:
+            - on_start(state_dict)
+            - on_candle(candle_dict, state_dict) -> intent
+            - on_stop(state_dict)
+            The strategy may expose a "name" attribute for logging.
+    
+    Returns:
+        int: Process exit code — `0` on normal completion, `1` if a fatal error occurred.
+    """
     risk_cfg = cfg.get("risk", {})
     risk = RiskEngine(RiskConfig(
         max_position_pct=float(risk_cfg.get("max_position_pct", 0.10)),

@@ -4,10 +4,28 @@ import sys
 import ccxt
 
 def die(msg: str, code: int = 2) -> None:
+    """
+    Prints an error message prefixed with "GATE10_FAIL:" to stderr and terminates the process with the specified exit code.
+    
+    Parameters:
+        msg (str): The error message to print after the "GATE10_FAIL:" prefix.
+        code (int): Exit code to use when terminating the process (default 2).
+    
+    Raises:
+        SystemExit: Always raised to exit the process with the given code.
+    """
     print(f"GATE10_FAIL: {msg}", file=sys.stderr)
     raise SystemExit(code)
 
 def mk_exchange():
+    """
+    Create and return a configured ccxt Binance US exchange client.
+    
+    Reads BINANCEUS_API_KEY and BINANCEUS_API_SECRET from the environment and exits the process with a GATE10_FAIL message if either is missing.
+    
+    Returns:
+        ccxt.binanceus: A Binance US exchange instance configured with the environment API key and secret and rate limiting enabled.
+    """
     key = os.getenv("BINANCEUS_API_KEY")
     sec = os.getenv("BINANCEUS_API_SECRET")
     if not key or not sec:
@@ -15,6 +33,11 @@ def mk_exchange():
     return ccxt.binanceus({"apiKey": key, "secret": sec, "enableRateLimit": True})
 
 def main():
+    """
+    Run the reconciliation check: validate symbol, ensure no open orders, and report free balances.
+    
+    Loads the configured Binance US exchange, verifies the target SYMBOL exists, aborts if any open orders remain, fetches free balances for the market's base and quote currencies, prints status and balance lines, and enforces MIN_USDT when the quote is USDT. Exits the process with a non-zero code on error conditions (including CCXT errors, which cause exit code 3).
+    """
     symbol = os.getenv("SYMBOL", "BTC/USDT")
     min_usdt = float(os.getenv("MIN_USDT", "0.0"))
 

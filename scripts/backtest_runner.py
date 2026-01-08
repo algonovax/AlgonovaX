@@ -16,6 +16,14 @@ OUT = ROOT / "data" / "backtest_last.json"
 
 
 def main() -> int:
+    """
+    Run a simple synthetic backtest, compute a trading signal, and persist the result.
+    
+    Builds a 60-point synthetic close price series, constructs a DataFrame, calls the SMA cross strategy to produce a signal, and writes a JSON payload describing the run to the module-level OUT path. The function prints the output path and contents. On exception it prints a traceback, attempts to write an error payload to OUT, and may re-raise the original exception if the environment variable ALGONOVAX_FAIL_FAST is set to "1".
+    
+    Returns:
+        int: `0` on success, `1` on failure.
+    """
     try:
         closes = [100 + (i % 7) for i in range(60)]
         df = pd.DataFrame({"close": closes})

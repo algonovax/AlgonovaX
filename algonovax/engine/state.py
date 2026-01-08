@@ -23,9 +23,27 @@ class EngineState:
     day_start_equity: float = 1000.0
 
     def to_dict(self) -> dict[str, Any]:
+        """
+        Return a dictionary representation of the dataclass suitable for serialization.
+        
+        Returns:
+            dict[str, Any]: Mapping of field names to their values; nested dataclasses are converted to dictionaries.
+        """
         return asdict(self)
 
 def load_state(path: str, default: EngineState) -> EngineState:
+    """
+    Load engine state from a JSON file and apply its values onto the provided default EngineState.
+    
+    If the file does not exist or an error occurs while reading/parsing it, the provided `default` is returned unchanged. When present, the JSON may contain top-level numeric fields (`cash_quote`, `realized_pnl`, `unrealized_pnl`, `equity`, `last_price`, `day_start_equity`) and a nested `position` object with `side`, `qty_base`, and `entry_price`; those values are converted to the appropriate types and written into the returned EngineState.
+    
+    Parameters:
+        path (str): Filesystem path to the JSON state file.
+        default (EngineState): Base EngineState instance to update with values from the file; returned (possibly mutated) as the result.
+    
+    Returns:
+        EngineState: The `default` EngineState with fields updated from the file when available, or the original `default` if the file is missing or an error occurs.
+    """
     p = Path(path)
     if not p.exists():
         return default
@@ -49,6 +67,13 @@ def load_state(path: str, default: EngineState) -> EngineState:
         return default
 
 def save_state(path: str, st: EngineState) -> None:
+    """
+    Persist an EngineState to disk as compact UTF-8 JSON, creating parent directories if needed.
+    
+    Parameters:
+        path (str): Filesystem path where the state JSON will be written.
+        st (EngineState): EngineState instance to serialize and save.
+    """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(st.to_dict(), separators=(",", ":"), ensure_ascii=False), encoding="utf-8")

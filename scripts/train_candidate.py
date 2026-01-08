@@ -22,6 +22,19 @@ OUT_REPORT = ROOT / "data" / "backtest_report.json"
 # Expected candle filename:
 # kraken_BTC_USD_5m_<start_ms>_<end_ms>.json
 def parse_candle_filename(name: str):
+    """
+    Parse a kraken candle filename and extract the start and end timestamps in milliseconds.
+    
+    Parameters:
+        name (str): Filename or path of a candle file matching pattern
+            "kraken_<BASE>_<QUOTE>_5m_<start>_<end>.json".
+    
+    Returns:
+        (start_ms, end_ms) (tuple[int, int]): Start and end timestamps in milliseconds.
+    
+    Raises:
+        ValueError: If `name` does not match the expected filename pattern.
+    """
     stem = Path(name).name
     m = re.match(r"^kraken_[A-Z0-9]+_[A-Z0-9]+_5m_(\d+)_(\d+)\.json$", stem)
     if not m:
@@ -30,6 +43,16 @@ def parse_candle_filename(name: str):
 
 
 def _append_jsonl(path: Path, obj: dict) -> None:
+    """
+    Append a single JSON record to a file in JSON Lines format, creating parent directories if necessary.
+    
+    Parameters:
+        path (Path): Target file path to append the JSON line to.
+        obj (dict): JSON-serializable object to write as a single line.
+    
+    Notes:
+        On failure the function prints an error message indicating the write failure.
+    """
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as f:
@@ -38,6 +61,14 @@ def _append_jsonl(path: Path, obj: dict) -> None:
         print(f"ERROR: failed writing registry: {e}")
 
 def main() -> int:
+    """
+    Run randomized backtest iterations against a provided candle file and persist the top candidate records.
+    
+    Reads CLI arguments and environment variables to determine iteration count, RNG seed, candle file, and how many top candidates to keep. For each iteration it samples strategy parameters, invokes an external backtest runner, collects the run report and metadata, marks runs as successful when the report shows trades > 0 and positive PnL, and writes the top candidates to the registry file.
+    
+    Returns:
+        int: Exit code where `0` indicates success, `2` indicates input/validation errors (missing or invalid candle file or filename), and other non-zero values indicate failures during processing.
+    """
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--iterations", type=int, default=int(os.environ.get("TRAIN_ITERS", "60")))

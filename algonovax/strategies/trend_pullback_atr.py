@@ -21,6 +21,27 @@ def generate_signal(
     rr: float = 1.8,
     min_bars: int | None = None,
 ) -> Signal:
+    """
+    Generate a trading Signal based on EMA trend, a shorter EMA pullback reclaim, RSI momentum, and ATR-based stop/target.
+    
+    The function emits:
+    - a BUY signal when price is above the trend EMA, reclaims the pullback EMA (price moved from below to above the pull EMA) and RSI crosses above 50; stop loss is set to entry - atr_k * ATR and take profit is entry + rr * (entry - stop).
+    - a SELL signal when price crosses below the trend EMA (trend breakdown).
+    - a HOLD signal for warmup, missing data, no valid setup, or on error.
+    
+    Parameters:
+        df (pd.DataFrame): Price data containing at minimum 'close', 'high', and 'low' columns.
+        trend_ema (int): Lookback length for the trend EMA.
+        pullback_ema (int): Lookback length for the pullback (reclaim) EMA.
+        rsi_n (int): Period for RSI calculation.
+        atr_n (int): Period for ATR calculation.
+        atr_k (float): ATR multiplier used to compute the stop loss distance from entry.
+        rr (float): Reward-to-risk ratio used to compute take profit from entry and stop.
+        min_bars (int | None): Optional override for minimum required bars; if None the function computes a warmup length.
+    
+    Returns:
+        Signal: A Signal object indicating Side.BUY, Side.SELL, or Side.HOLD. For BUY signals the returned object includes stop_loss and take_profit computed from ATR, atr_k, and rr; HOLD reasons include warmup, missing columns, no setup, or error details.
+    """
     try:
         if df is None or df.empty:
             return Signal(Side.HOLD, 0.0, "empty_df")

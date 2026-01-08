@@ -16,11 +16,35 @@ REPORT = ROOT / "data" / "backtest_report.json"
 OUT_SEEDS = ROOT / "data" / "registry" / "seeds.jsonl"
 
 def _append_jsonl(path: Path, obj: dict[str, Any]) -> None:
+    """
+    Append a JSON-serialized object as a single line to a file, creating parent directories if needed.
+    
+    Parameters:
+    	path (Path): Destination file path; parent directories will be created if missing.
+    	obj (dict[str, Any]): Object to serialize; keys are sorted before writing.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(obj, sort_keys=True) + "\n")
 
 def _run(env: dict[str, str]) -> dict[str, Any]:
+    """
+    Run the backtest runner script with the provided environment and return execution metadata and any generated report.
+    
+    Parameters:
+        env (dict[str, str]): Environment variables to use when launching the runner subprocess. This environment is passed directly to the child process.
+    
+    Notes:
+        The function removes an existing REPORT file before running and attempts to read and parse REPORT as JSON after the runner completes.
+    
+    Returns:
+        dict[str, Any]: A dictionary containing:
+            - rc: subprocess return code (int).
+            - elapsed_ms: execution time in milliseconds (int).
+            - report: parsed JSON content from REPORT if present and valid, otherwise an empty dict.
+            - out_tail: last up to 1200 characters of the subprocess stdout (str).
+            - err_tail: last up to 1200 characters of the subprocess stderr (str).
+    """
     try:
         if REPORT.exists():
             REPORT.unlink()
@@ -54,6 +78,14 @@ def _run(env: dict[str, str]) -> dict[str, Any]:
     }
 
 def main() -> int:
+    """
+    Run a randomized sweep of trading strategies, backtest each configuration, and write the top-scoring seeds to the registry.
+    
+    This function parses CLI args (iters, seed, keep, candle-file), validates the candle file, seeds the RNG, constructs environment variables and randomized knobs for each trial, invokes the backtest runner, scores results, and writes the top N trial records as JSONL to the configured seeds output path. Progress is printed to stdout for each iteration.
+    
+    Returns:
+        exit_code (int): 0 on successful completion; 2 if the candle file argument is missing or the file does not exist.
+    """
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--iters", type=int, default=int(os.environ.get("SWEEP_ITERS", "80")))

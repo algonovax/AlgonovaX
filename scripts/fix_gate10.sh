@@ -4,6 +4,7 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# on_err prints crash details (exit code, line number, and command) to stderr and exits with the same exit code.
 on_err() {
   local ec=$?
   echo "FIX_GATE10_CRASH exit_code=$ec line=${BASH_LINENO[0]} cmd=${BASH_COMMAND}" >&2

@@ -17,11 +17,23 @@ except Exception as e:
 
 @app.get("/")
 def _root():
+    """
+    Redirect requests to the web UI at /ui.
+    
+    Returns:
+        redirect (RedirectResponse): A response that redirects the client to '/ui' with HTTP status 307.
+    """
     return RedirectResponse(url="/ui", status_code=307)
 
 # --- favicon hardening (never 500) ---
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
+    """
+    Serve the application's favicon when available; otherwise return no content.
+    
+    Returns:
+        FileResponse when the favicon file exists; Response with status code 204 when the file is missing or an error occurs.
+    """
     try:
         p = os.path.join(os.path.dirname(__file__), "static", "favicon.ico")
         if os.path.exists(p):
@@ -37,6 +49,15 @@ _BACKTEST_OUT = os.path.join(_BASE, "logs", "backtests", "backtest.out")
 
 @app.get("/api/backtest/last")
 def api_backtest_last():
+    """
+    Fetches the contents of backtest_last.json and returns them as a JSONResponse.
+    
+    Returns:
+        JSONResponse: Parsed JSON content of backtest_last.json.
+    
+    Raises:
+        HTTPException: If the file is not found (status 404) or if reading/parsing fails (status 500).
+    """
     try:
         if not os.path.exists(_BACKTEST_LAST):
             raise HTTPException(status_code=404, detail="backtest_last.json not found")
@@ -49,6 +70,18 @@ def api_backtest_last():
 
 @app.get("/api/backtest/output")
 def api_backtest_output(tail: int = 200):
+    """
+    Retrieve the tail of the backtest output log as plain text.
+    
+    Parameters:
+        tail (int): Number of lines to return from the end of the backtest output. Values are clamped to the range 1..5000.
+    
+    Returns:
+        Response: A plain-text HTTP response whose body is the last `tail` lines of the backtest output file, or an empty string if the output file does not exist.
+    
+    Raises:
+        HTTPException: With status code 500 if an error occurs while reading the backtest output file.
+    """
     try:
         tail = max(1, min(int(tail), 5000))
         if not os.path.exists(_BACKTEST_OUT):

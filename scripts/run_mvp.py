@@ -6,6 +6,14 @@ from algonovax.engine.engine import run
 from algonovax.strategy.ema_cross_mvp import EMACrossMVP
 
 def main() -> int:
+    """
+    Load and validate configuration from config/config.yaml, execute the EMACrossMVP strategy, and return an exit status.
+    
+    The function expects the YAML file to contain a mapping with a required "pair" key. It runs the strategy runner and maps observable failures to specific exit codes.
+    
+    Returns:
+        int: Exit status code — the value returned by the strategy runner on successful execution; 2 if the configuration file is missing; 1 for any other error.
+    """
     try:
         with open("config/config.yaml", "r", encoding="utf-8") as f:
             cfg = yaml.safe_load(f)

@@ -12,11 +12,27 @@ from algonovax.strategies.types import Side
 
 
 def die(msg: str, code: int = 2) -> None:
+    """
+    Abort execution with a lifecycle failure message and the given exit code.
+    
+    Parameters:
+    	msg (str): Message to print to stderr, prefixed with "LIFECYCLE_FAIL:".
+    	code (int): Process exit code to use when terminating (default 2).
+    """
     print(f"LIFECYCLE_FAIL: {msg}", file=sys.stderr)
     raise SystemExit(code)
 
 
 def _coerce(v: str):
+    """
+    Coerces a string into a boolean, int, float, or stripped string based on its content.
+    
+    Parameters:
+        v (str): Input string to parse.
+    
+    Returns:
+        The parsed value: `True` or `False` if the input equals "true" or "false" (case-insensitive); an `int` if the string represents an integer; a `float` if the string contains a dot and parses as a float; otherwise the stripped original string.
+    """
     s = v.strip()
     if s.lower() in ("true", "false"):
         return s.lower() == "true"
@@ -29,6 +45,15 @@ def _coerce(v: str):
 
 
 def build_kwargs_for(fn) -> Dict[str, Any]:
+    """
+    Builds a dictionary of keyword arguments for the given function by reading and coercing predefined environment variables.
+    
+    Parameters:
+    	fn (callable): Target function whose parameter names are used to decide which environment variables to include. Only environment variables mapped to parameter names present in the function's signature are considered; their values are coerced from strings to bool/int/float/str.
+    
+    Returns:
+    	kwargs (Dict[str, Any]): Mapping of function parameter names to coerced values derived from environment variables. Prints a "USED_KWARGS" line when any environment-driven arguments are applied.
+    """
     sig = inspect.signature(fn)
     allowed = set(sig.parameters.keys())
 
@@ -69,6 +94,11 @@ def build_kwargs_for(fn) -> Dict[str, Any]:
 
 
 def main() -> None:
+    """
+    Run a forward-simulated lifecycle scan of a trading strategy against candlestick data.
+    
+    Loads candles from the CANDLES_JSON path, validates required columns, selects the named strategy (STRATEGY) and environment-driven kwargs, then steps forward through the candles applying the strategy to manage a single position lifecycle. Maintains entry state, optional dynamic stop-loss and take-profit, and supports intrabar SL/TP exit simulation when USE_SL_TP is enabled. Emits event lines for BUY, EXIT_SL, EXIT_TP, EXIT_SELL and a final SUMMARY with rows, lookback, trades, wins, losses, and whether a position remains open at the end.
+    """
     path = os.getenv("CANDLES_JSON")
     strat = os.getenv("STRATEGY", "ema_rsi_atr")
     lookback = int(os.getenv("LOOKBACK", "180"))

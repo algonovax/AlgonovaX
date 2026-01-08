@@ -11,6 +11,18 @@ from .types import Side, Signal
 
 
 def _donchian(high: pd.Series, low: pd.Series, n: int) -> tuple[pd.Series, pd.Series]:
+    """
+    Compute Donchian channel bounds over a rolling window.
+    
+    Parameters:
+    	high (pd.Series): Series of high prices.
+    	low (pd.Series): Series of low prices.
+    	n (int): Window length for the rolling high/low.
+    
+    Returns:
+    	hi (pd.Series): Rolling maximum of `high` over the past `n` periods.
+    	lo (pd.Series): Rolling minimum of `low` over the past `n` periods.
+    """
     hi = high.rolling(n, min_periods=n).max()
     lo = low.rolling(n, min_periods=n).min()
     return hi, lo
@@ -38,6 +50,30 @@ def generate_signal(
 
     breakout_buffer_atr: float = 0.10,  # require breakout by X*ATR
 ) -> Signal:
+    """
+    Generate a trading signal based on Donchian channel breakouts, ATR volatility, and EMA trend.
+    
+    Evaluates trend (EMA and recent EMA slope), volatility (ATR threshold), breakout above the prior Donchian high, and in-position management rules (time stop, ATR-based trailing/hard stop, minimum hold, and channel failure). Returns immediate BUY, SELL, or HOLD signals with optional stop-loss and take-profit levels.
+    
+    Parameters:
+        df (pd.DataFrame): Price data containing 'close', 'high', and 'low' columns.
+        in_position (bool): True if a position is currently held.
+        entry_price (float | None): Entry price of the current position (required for stop calculations).
+        entry_index (int | None): Row index in df when the position was entered (used for hold/time stops).
+        trend_ema (int): EMA length used to define trend.
+        slope_bars (int): Number of bars used to compute the EMA slope requirement.
+        donchian_n (int): Window length for Donchian channel high/low.
+        atr_n (int): ATR period for volatility and stop calculations.
+        stop_k (float): Multiplier of ATR to compute the hard stop distance from entry.
+        trail_k (float): Multiplier of ATR to compute the trailing stop distance from current price.
+        min_atr_pct (float): Minimum ATR as a fraction of price required to consider a tradable regime.
+        max_hold_bars (int): Maximum number of bars to hold a position before forcing a time stop.
+        min_hold_bars (int): Minimum number of bars to hold a new position before allowing exits.
+        breakout_buffer_atr (float): Breakout buffer expressed as a multiple of ATR added to prior Donchian high.
+    
+    Returns:
+        Signal: Trading decision. BUY signals include suggested stop_loss and take_profit; SELL signals may include stop_loss; HOLD signals include a reason code when no action is taken.
+    """
     try:
         if df is None or df.empty:
             return Signal(Side.HOLD, 0.0, "empty_df")

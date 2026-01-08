@@ -22,12 +22,29 @@ NS_PER_DAY = 24 * 60 * 60 * NS_PER_SEC
 
 def parse_trade(row) -> tuple[int, float, float]:
     # Kraken trade row: [price, volume, time, side, orderType, misc]
+    """
+    Convert a Kraken trade row into a (timestamp_ms, price, volume) tuple.
+    
+    Parameters:
+        row (Sequence): Kraken trade row in the format [price, volume, time, side, orderType, misc]; `price` and `volume` are numeric or numeric strings, `time` is seconds since epoch (string or float).
+    
+    Returns:
+        tuple[int, float, float]: (ts_ms, price, vol) where `ts_ms` is the timestamp in milliseconds since epoch, `price` is the trade price, and `vol` is the trade volume.
+    """
     price = float(row[0])
     vol = float(row[1])
     ts_ms = int(float(row[2]) * 1000.0)
     return ts_ms, price, vol
 
 def main() -> int:
+    """
+    Fetches Kraken trades for XBTUSD, aggregates them into 5-minute OHLCV candles, and writes the candles as a JSON file under data/candles.
+    
+    The function scans recent trades (covering a rolling 30-day window), buckets trades into 5-minute intervals, computes open/high/low/close/volume per bucket, prints periodic progress, and writes the resulting time-ordered candle rows to a timestamped file in the CANDLES_DIR.
+    
+    Returns:
+        int: `0` on success, `1` if no candles were built.
+    """
     days = 30
     now_ns = int(time.time() * NS_PER_SEC)
     since_ns = now_ns - days * NS_PER_DAY

@@ -4,6 +4,14 @@ from pathlib import Path
 import yaml
 
 def main() -> int:
+    """
+    Run a clean trading simulation using configuration from config/config.yaml.
+    
+    Deletes data/state.json if present, loads and validates the YAML configuration, ensures a `paper` section with numeric `starting_cash_quote` and `stake_quote` (defaulting to 1000.0 and 100.0), constructs an EMACrossMVP strategy with the configured stake, and executes the engine run.
+    
+    Returns:
+        exit_code (int): The integer exit code: the engine run's integer result on success, `2` if the config file is missing, or `1` for any other fatal error.
+    """
     try:
         Path("data/state.json").unlink(missing_ok=True)
 

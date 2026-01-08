@@ -7,19 +7,62 @@ from decimal import Decimal, ROUND_DOWN
 import ccxt
 
 def die(msg: str, code: int = 2) -> None:
+    """
+    Prints a standardized failure message to stderr and exits the process with the given code.
+    
+    Parameters:
+        msg (str): Human-readable failure message appended after the "GATE9_FAIL:" prefix.
+        code (int): Process exit code used when terminating (default 2).
+    
+    Raises:
+        SystemExit: Terminates the program with the provided exit code.
+    """
     print(f"GATE9_FAIL: {msg}", file=sys.stderr)
     raise SystemExit(code)
 
 def qd(x: Decimal, step: Decimal) -> Decimal:
     # quantize down to step (floor)
+    """
+    Quantizes a Decimal value down to the nearest multiple of a given step.
+    
+    Parameters:
+        x (Decimal): The value to quantize.
+        step (Decimal): The step size to quantize to; if less than or equal to zero, `x` is returned unchanged.
+    
+    Returns:
+        Decimal: The largest multiple of `step` that is less than or equal to `x` (or `x` unchanged when `step` <= 0).
+    """
     if step <= 0:
         return x
     return (x / step).to_integral_value(rounding=ROUND_DOWN) * step
 
 def d(x) -> Decimal:
+    """
+    Convert a value to Decimal using its string representation.
+    
+    Parameters:
+        x: The value to convert (commonly int, float, or str).
+    
+    Returns:
+        Decimal: Decimal representation of `x`.
+    """
     return Decimal(str(x))
 
 def mk_exchange(name: str):
+    """
+    Create and configure a CCXT exchange instance for the given exchange name.
+    
+    Parameters:
+        name (str): Exchange identifier; supported values are "binance", "binanceus", or "binance_us" (case-insensitive).
+    
+    Description:
+        - For "binanceus" / "binance_us": reads BINANCEUS_API_KEY and BINANCEUS_API_SECRET from the environment and returns a ccxt.binanceus instance with rate limiting enabled. Exits via die() if credentials are missing.
+        - For "binance": reads BINANCE_API_KEY and BINANCE_API_SECRET from the environment and returns a ccxt.binance instance with rate limiting enabled. If the exchange instance supports sandbox mode and the MODE environment variable (default "testnet") is "testnet", sandbox mode is enabled. Exits via die() if credentials are missing.
+        - For any other name: exits via die() indicating the exchange is unsupported.
+    
+    Returns:
+        ccxt.Exchange: A configured CCXT exchange instance.
+    """
     name = name.lower()
     if name in ("binanceus", "binance_us"):
         key = os.getenv("BINANCEUS_API_KEY")
@@ -40,6 +83,11 @@ def mk_exchange(name: str):
     die(f"Unsupported EXCHANGE={name}")
 
 def main():
+    """
+    Prepare, place, cancel, and verify a test LIMIT BUY order on a CCXT-compatible exchange configured via environment variables.
+    
+    This function reads configuration from environment variables (notably EXCHANGE, MODE, ALLOW_LIVE_ORDER_TEST, SYMBOL, STAKE_QUOTE, and PRICE_MULT), loads the market, computes a price and amount according to market precision and limits, prints prepared order details, places a LIMIT BUY order, immediately cancels it, and verifies the cancellation. It emits GATE9_OK and GATE9_PASS messages on success and calls die(...) to abort with a non-zero exit code on validation or execution failures.
+    """
     ex_name = os.getenv("EXCHANGE", "binanceus")
     mode = os.getenv("MODE", "testnet").lower()
 

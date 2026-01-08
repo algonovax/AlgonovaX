@@ -14,6 +14,20 @@ OUT_TRADES = ROOT / "data" / "backtest_trades.json"
 
 # Candle rows: [ts_ms, open, high, low, close, vol]
 def load_candles(path: Path) -> List[List[float]]:
+    """
+    Load candle rows from a JSON file.
+    
+    Supports two formats: either the JSON is a list of candle rows or a dict containing a "candles" key whose value is the list. Each candle row is expected to be a list of numeric values (e.g., [ts, open, high, low, close, ...]).
+    
+    Parameters:
+        path (Path): Path to the JSON file to read.
+    
+    Returns:
+        List[List[float]]: The list of candle rows.
+    
+    Raises:
+        ValueError: If the parsed JSON is not a non-empty list of candles.
+    """
     data = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(data, dict) and "candles" in data:
         data = data["candles"]
@@ -23,6 +37,17 @@ def load_candles(path: Path) -> List[List[float]]:
 
 
 def max_drawdown(equity: List[float]) -> Tuple[float, float]:
+    """
+    Compute the maximum drawdown from a time-ordered equity series.
+    
+    Parameters:
+        equity (List[float]): Sequence of equity values (account value) over time.
+    
+    Returns:
+        Tuple[float, float]: A pair (max_drawdown, max_drawdown_pct) where
+            - max_drawdown is the largest peak-to-trough drop in absolute units,
+            - max_drawdown_pct is the same drop expressed as a fraction of the peak (0.0–1.0).
+    """
     if not equity:
         return 0.0, 0.0
     peak = float(equity[0])
@@ -38,18 +63,61 @@ def max_drawdown(equity: List[float]) -> Tuple[float, float]:
     return float(max_dd), float(max_dd_pct)
 
 def senv(k: str, d: str) -> str:
+    """
+    Return the value of an environment variable or a default when missing or empty.
+    
+    Parameters:
+        k (str): Name of the environment variable to read.
+        d (str): Default string to return if the variable is not set or is empty (after stripping).
+    
+    Returns:
+        str: The stripped environment variable value if present and non-empty, otherwise `d`.
+    """
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else v.strip()
 
 def ienv(k: str, d: int) -> int:
+    """
+    Read an environment variable and convert it to an integer, returning a default when missing or empty.
+    
+    Parameters:
+        k (str): Environment variable name to read.
+        d (int): Default integer to return if the environment variable is unset or an empty string.
+    
+    Returns:
+        int: The integer value of the environment variable, or `d` if the variable is not present or is empty.
+    """
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else int(v)
 
 def fenv(k: str, d: float) -> float:
+    """
+    Read an environment variable, parse it as a float, and return it or a default.
+    
+    Parameters:
+        k (str): Environment variable name to read.
+        d (float): Default value returned if the variable is missing or is empty/whitespace.
+    
+    Returns:
+        float: The parsed float value of the environment variable, or `d` if the variable is missing or contains only whitespace.
+    """
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else float(v)
 
 def clamp_window(candles: List[List[float]], start_ms: int, end_ms: int) -> List[List[float]]:
+    """
+    Filter candle rows to a time window defined by millisecond timestamps.
+    
+    Only rows whose first element (timestamp in milliseconds) falls within the inclusive range [start_ms, end_ms] are retained. If start_ms or end_ms is non-positive, that bound is ignored; if both are non-positive the input list is returned unchanged.
+    
+    Parameters:
+        candles (List[List[float]]): Sequence of candle rows where each row's first element is the timestamp in milliseconds.
+        start_ms (int): Lower timestamp bound in milliseconds; values <= 0 disable the lower bound.
+        end_ms (int): Upper timestamp bound in milliseconds; values <= 0 disable the upper bound.
+    
+    Returns:
+        List[List[float]]: Filtered list of candle rows satisfying the provided time bounds.
+    """
     if start_ms <= 0 and end_ms <= 0:
         return candles
     out = []
@@ -63,10 +131,32 @@ def clamp_window(candles: List[List[float]], start_ms: int, end_ms: int) -> List
     return out
 
 def rolling_max(vals: List[float], n: int, idx: int) -> float:
+    """
+    Get the maximum value over the lookback window of up to `n` elements ending before `idx`.
+    
+    Parameters:
+    	vals (List[float]): Sequence of numeric values.
+    	n (int): Lookback window size.
+    	idx (int): Current index; the window is vals[max(0, idx-n):idx].
+    
+    Returns:
+    	max_value (float): The maximum of the lookback window if it is non-empty, otherwise `vals[idx]`.
+    """
     a = max(0, idx - n)
     return max(vals[a:idx]) if idx > a else vals[idx]
 
 def rolling_min(vals: List[float], n: int, idx: int) -> float:
+    """
+    Get the minimum value in the lookback window that ends at index `idx`.
+    
+    Parameters:
+    	vals (List[float]): Sequence of values to inspect.
+    	n (int): Lookback window size (number of prior elements to consider).
+    	idx (int): Current index (0-based); the window is vals[max(0, idx-n) : idx].
+    
+    Returns:
+    	The minimum value over the window vals[max(0, idx-n) : idx], or vals[idx] if that window is empty.
+    """
     a = max(0, idx - n)
     return min(vals[a:idx]) if idx > a else vals[idx]
 
@@ -80,6 +170,14 @@ class Trade:
     pnl: float
 
 def main() -> int:
+    """
+    Run a Donchian breakout backtest using candle data from an environment-specified file and write a summary report and trades file.
+    
+    Reads configuration from environment variables (including CANDLE_FILE, windowing, fees, stake, and strategy parameters), loads and optionally windows candle data, runs a simple ATR-based Donchian breakout strategy that enters longs and exits on ATR stop, take-profit, or maximum hold time, and accumulates trade and equity results. Writes a JSON summary report and a detailed trades JSON to configured output paths.
+    
+    Returns:
+        int: Exit code where `0` indicates success and `2` indicates an error (an error report is written on failure).
+    """
     try:
         candle_file = senv("CANDLE_FILE", "")
         if not candle_file:

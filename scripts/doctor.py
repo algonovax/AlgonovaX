@@ -48,6 +48,11 @@ class EMACrossMVP(Strategy):
 }
 
 def write_all() -> None:
+    """
+    Write each entry in FILES to its filesystem path, creating parent directories as needed.
+    
+    Each mapping key is treated as a file path; the corresponding value is written using UTF-8 encoding. For every file written a confirmation line "WROTE {path}" is printed to standard output.
+    """
     for p, content in FILES.items():
         path = Path(p)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -56,6 +61,14 @@ def write_all() -> None:
 
 def compile_all() -> None:
     # compile whole package to catch truncation/syntax errors
+    """
+    Compile the "algonovax" package bytecode and exit with a nonzero status if compilation fails.
+    
+    Runs the Python compileall module on the algonovax package. On success prints "COMPILE OK".
+    
+    Raises:
+        SystemExit: if the compilation subprocess exits with a nonzero return code (exit code forwarded).
+    """
     cmd = [sys.executable, "-m", "compileall", "-q", "algonovax"]
     r = subprocess.run(cmd)
     if r.returncode != 0:
@@ -63,6 +76,15 @@ def compile_all() -> None:
     print("COMPILE OK")
 
 def main() -> None:
+    """
+    Write generated strategy files to disk and compile the package.
+    
+    Writes all files produced by this script to their target paths, then compiles the
+    `algonovax` package to verify syntax and byte-compile the module files.
+    
+    Raises:
+        SystemExit: If compilation fails (non-zero exit code).
+    """
     write_all()
     compile_all()
 

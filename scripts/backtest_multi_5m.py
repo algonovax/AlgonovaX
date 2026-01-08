@@ -13,6 +13,18 @@ OUT_REPORT = ROOT / "data" / "backtest_report.json"
 OUT_TRADES = ROOT / "data" / "backtest_trades.json"
 
 def load_candles(path: Path) -> List[List[float]]:
+    """
+    Load candle data from a JSON file path, accepting either a raw list or an object with a "candles" key.
+    
+    Parameters:
+    	path (Path): Path to a JSON file containing either a list of candles or an object with a "candles" list.
+    
+    Returns:
+    	candles (List[List[float]]): The parsed list of candles.
+    
+    Raises:
+    	ValueError: If the JSON does not contain a non-empty list of candles.
+    """
     data = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(data, dict) and "candles" in data:
         data = data["candles"]
@@ -21,18 +33,59 @@ def load_candles(path: Path) -> List[List[float]]:
     return data
 
 def senv(k: str, d: str) -> str:
+    """
+    Get an environment variable's value trimmed of surrounding whitespace, or return a default if the variable is not set or is empty.
+    
+    Parameters:
+        k (str): Environment variable name to read.
+        d (str): Default string to return when the environment variable is missing or empty.
+    
+    Returns:
+        str: The environment variable's value with leading and trailing whitespace removed, or `d` if the variable is unset or empty.
+    """
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else v.strip()
 
 def ienv(k: str, d: int) -> int:
+    """
+    Fetches an integer environment variable or returns a provided default when the variable is missing or empty.
+    
+    Parameters:
+        k (str): Environment variable name to read.
+        d (int): Default integer to return if the environment variable is not set or is an empty string.
+    
+    Returns:
+        int: The integer value of the environment variable `k` if present and non-empty; otherwise `d`.
+    """
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else int(v)
 
 def fenv(k: str, d: float) -> float:
+    """
+    Read an environment variable and return its value parsed as a float, falling back to a default when the variable is unset or empty.
+    
+    Parameters:
+        k (str): Environment variable name to read.
+        d (float): Default value returned when the environment variable is missing or empty.
+    
+    Returns:
+        float: The parsed floating-point value of the environment variable, or `d` if the variable is not set or is an empty string.
+    """
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else float(v)
 
 def clamp_window(candles: List[List[float]], start_ms: int, end_ms: int) -> List[List[float]]:
+    """
+    Filter a list of candle rows to the time window defined by start_ms and end_ms.
+    
+    Parameters:
+        candles (List[List[float]]): List of candle records where the first element is a millisecond timestamp.
+        start_ms (int): Inclusive lower bound timestamp in milliseconds; non-positive value disables the lower bound.
+        end_ms (int): Inclusive upper bound timestamp in milliseconds; non-positive value disables the upper bound.
+    
+    Returns:
+        List[List[float]]: Sublist of `candles` whose timestamps are between `start_ms` and `end_ms` (inclusive). If both bounds are non-positive, the original `candles` list is returned unchanged.
+    """
     if start_ms <= 0 and end_ms <= 0:
         return candles
     out: List[List[float]] = []
@@ -46,10 +99,31 @@ def clamp_window(candles: List[List[float]], start_ms: int, end_ms: int) -> List
     return out
 
 def rolling_max(vals: List[float], n: int, idx: int) -> float:
+    """
+    Compute the maximum of up to `n` values immediately before index `idx` (exclusive).
+    
+    Parameters:
+    	vals (List[float]): Sequence of numeric values.
+    	n (int): Number of preceding elements to include in the window.
+    	idx (int): Index in `vals` that marks the end of the window (exclusive).
+    
+    Returns:
+    	float: Maximum value of the window of up to `n` elements before `idx`. If the window is empty (for example when `n` is 0 or `idx` is 0), returns `vals[idx]`.
+    """
     a = max(0, idx - n)
     return max(vals[a:idx]) if idx > a else vals[idx]
 
 def ema(series: List[float], n: int) -> List[float]:
+    """
+    Compute the exponential moving average (EMA) of a numeric series.
+    
+    Parameters:
+        series (List[float]): Input time series of numeric values.
+        n (int): EMA period (smoothing window). If `n <= 1`, the input series is returned as floats.
+    
+    Returns:
+        List[float]: EMA values for each input point (same length as `series`).
+    """
     if n <= 1:
         return [float(x) for x in series]
     alpha = 2.0 / (n + 1.0)
@@ -59,6 +133,16 @@ def ema(series: List[float], n: int) -> List[float]:
     return out
 
 def rsi(close: List[float], n: int) -> List[float]:
+    """
+    Compute the Relative Strength Index (RSI) for a series of closing prices over period n.
+    
+    Parameters:
+        close (List[float]): Sequence of closing prices, one per bar.
+        n (int): Lookback period for RSI calculation; when n <= 1 every output is 50.0.
+    
+    Returns:
+        List[float]: RSI values aligned with `close`. Bars lacking sufficient history are 50.0; computed values are in the range 0.0–100.0.
+    """
     if n <= 1:
         return [50.0] * len(close)
     gains = [0.0] * len(close)
@@ -83,6 +167,19 @@ def rsi(close: List[float], n: int) -> List[float]:
     return out
 
 def compute_atr(high: List[float], low: List[float], close: List[float], n: int) -> List[float]:
+    """
+    Compute the Average True Range (ATR) series using a rolling window of true range values.
+    
+    Parameters:
+        high (List[float]): High prices for each bar; must align with `low` and `close`.
+        low (List[float]): Low prices for each bar; must align with `high` and `close`.
+        close (List[float]): Close prices for each bar; used to compute true range relative to prior close.
+        n (int): Window size for the ATR calculation; values less than 1 are treated as 1.
+    
+    Returns:
+        atr (List[float]): ATR value for each input bar. Each element is the average of the true ranges
+        over the current and previous `n-1` bars. The first bar's true range is `high - low`.
+    """
     tr: List[float] = []
     for i in range(len(close)):
         if i == 0:
@@ -102,6 +199,17 @@ def compute_atr(high: List[float], low: List[float], close: List[float], n: int)
     return out
 
 def max_drawdown(equity: List[float]) -> Tuple[float, float]:
+    """
+    Compute the maximum peak-to-trough drawdown and its percentage from a chronological equity series.
+    
+    Parameters:
+        equity (List[float]): Chronological list of equity values (e.g., portfolio value at each time step).
+    
+    Returns:
+        (max_drawdown, max_drawdown_pct): 
+            `max_drawdown` is the largest observed decline from a historical peak to a subsequent trough (absolute value).
+            `max_drawdown_pct` is `max_drawdown` divided by the peak at which that drawdown began; returns 0.0 if the peak is not greater than 0.
+    """
     if not equity:
         return 0.0, 0.0
     peak = float(equity[0])
@@ -128,6 +236,26 @@ class Trade:
     reason: str
 
 def entry_signal(strategy: str, i: int, high: List[float], close: List[float], atr: List[float]) -> bool:
+    """
+    Determine whether an entry should be taken at index `i` for the given strategy.
+    
+    This evaluates strategy-specific entry conditions using market series and ATR. Supported strategies:
+    - "donchian_breakout_atr": enter when the close breaks above the Donchian high adjusted by an optional ATR buffer and when ATR meets a minimum percentage threshold.
+    - "ema_pullback": enter when price is above a trend EMA, the EMA slope over a short lookback is positive, and the current pullback from the EMA is within a configured maximum; also respects a minimum ATR percentage.
+    - "rsi_mean_revert": enter when RSI is below a configured buy threshold and ATR meets a minimum percentage.
+    
+    Environment variables configure strategy parameters (e.g., DONCHIAN_N, BREAKOUT_ATR_BUFFER, TREND_EMA, PULLBACK_MAX, SLOPE_BARS, RSI_N, RSI_BUY, MIN_ATR_PCT).
+    
+    Parameters:
+        strategy (str): Strategy identifier (one of "donchian_breakout_atr", "ema_pullback", "rsi_mean_revert").
+        i (int): Index in the series at which to evaluate the entry condition.
+        high (List[float]): High prices series.
+        close (List[float]): Close prices series.
+        atr (List[float]): ATR series aligned with price series.
+    
+    Returns:
+        `true` if the entry conditions for the specified strategy are met at index `i`, `false` otherwise.
+    """
     if strategy == "donchian_breakout_atr":
         donchian_n = ienv("DONCHIAN_N", 20)
         min_atr_pct = fenv("MIN_ATR_PCT", 0.0)
@@ -174,7 +302,24 @@ def entry_signal(strategy: str, i: int, high: List[float], close: List[float], a
 
 def exit_signal(strategy: str, i: int, high: List[float], low: List[float], close: List[float], atr: List[float],
                 entry_i: int, stop_px: float, take_px: float) -> Tuple[bool, float, str]:
-    slip_rate = fenv("SLIPPAGE_RATE", 0.0003)
+    """
+                Determine whether an open position should be closed at the current bar and return the exit price and reason.
+                
+                Parameters:
+                    strategy (str): Strategy identifier (affects strategy-specific exit rules).
+                    i (int): Current bar index being evaluated.
+                    high (List[float]): Series of bar high prices.
+                    low (List[float]): Series of bar low prices.
+                    close (List[float]): Series of bar close prices.
+                    atr (List[float]): Series of ATR values.
+                    entry_i (int): Bar index when the position was opened.
+                    stop_px (float): Stop-loss price level for the position.
+                    take_px (float): Take-profit price level for the position.
+                
+                Returns:
+                    Tuple[bool, float, str]: `True` if the position should be closed, `False` otherwise; the exit price to use (0.0 if not exiting); and a short reason string (`"stop"`, `"take"`, `"time"`, `"rsi_exit"`, or `""`).
+                """
+                slip_rate = fenv("SLIPPAGE_RATE", 0.0003)
 
     hit_stop = float(low[i]) <= float(stop_px)
     hit_take = float(high[i]) >= float(take_px)
@@ -198,6 +343,14 @@ def exit_signal(strategy: str, i: int, high: List[float], low: List[float], clos
     return False, 0.0, ""
 
 def main() -> int:
+    """
+    Run the backtest using environment-configured parameters and write results to disk.
+    
+    Reads candles from the path specified by the CANDLE_FILE environment variable, applies optional START_MS/END_MS windowing, computes indicators (ATR), executes the chosen strategy over the candle series to generate trades and an equity curve, and writes a JSON report and a JSON list of trades to configured output files.
+    
+    Returns:
+        int: Exit code: `0` on successful completion, `2` if an error occurred (an error report will be written when possible).
+    """
     try:
         candle_file = senv("CANDLE_FILE", "")
         if not candle_file:

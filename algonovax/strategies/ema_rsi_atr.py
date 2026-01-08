@@ -39,6 +39,21 @@ def generate_signal(
     max_hold_bars: int = 72,
     exit_trend_break: float = 0.997,
 ) -> Signal:
+    """
+    Generate a trading Signal based on EMA, RSI and ATR rules for entry and in-position exit management.
+    
+    Evaluates indicator warmup and input validity, then either (a) when not in position checks multiple entry gates (trend regime, EMA pullback/extension, RSI cross, impulse, ATR thresholds) and returns a BUY signal with initial stop loss and take-profit when all gates pass, or (b) when in position computes trailing/breakeven stop, time- and trend-based exits and returns SELL or HOLD with updated stop loss and take-profit.
+    
+    Parameters:
+        df (pd.DataFrame): price series with columns 'close', 'high', 'low'.
+        in_position (bool): True if currently holding a position; triggers exit logic.
+        entry_price (float | None): entry price when in_position is True.
+        entry_index (int | None): df length at entry (scanner-provided bar index) used to compute bars in trade and highs since entry.
+        exit_trend_break (float): multiplier applied to trend EMA to detect trend-break exits (e.g., 0.997).
+    
+    Returns:
+        Signal: a Signal object indicating Side (BUY/SELL/HOLD), confidence (float), reason (str), and when applicable stop_loss and take_profit values.
+    """
     try:
         if df is None or df.empty:
             return Signal(Side.HOLD, 0.0, "empty_df")

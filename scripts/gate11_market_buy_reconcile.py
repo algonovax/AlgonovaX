@@ -5,10 +5,27 @@ import time
 import ccxt
 
 def die(msg: str, code: int = 2) -> None:
+    """
+    Terminate the process with a standardized failure message.
+    
+    Prints `GATE11_FAIL: {msg}` to standard error and exits the process with the given exit code.
+    
+    Parameters:
+    	msg (str): Error message to include in the failure output.
+    	code (int): Process exit status to use (defaults to 2).
+    """
     print(f"GATE11_FAIL: {msg}", file=sys.stderr)
     raise SystemExit(code)
 
 def mk_exchange():
+    """
+    Create and return a configured Binance US CCXT exchange instance.
+    
+    Reads BINANCEUS_API_KEY and BINANCEUS_API_SECRET from the environment and terminates the process if either is missing.
+    
+    Returns:
+        ccxt.binanceus: An exchange instance configured with the API key, secret, and rate limit enabled.
+    """
     key = os.getenv("BINANCEUS_API_KEY")
     sec = os.getenv("BINANCEUS_API_SECRET")
     if not key or not sec:
@@ -16,10 +33,25 @@ def mk_exchange():
     return ccxt.binanceus({"apiKey": key, "secret": sec, "enableRateLimit": True})
 
 def get_free(bal, asset: str) -> float:
+    """
+    Return the available "free" amount for the specified asset from a balance mapping.
+    
+    Parameters:
+        bal (Mapping): Balance mapping expected to contain a "free" sub-mapping of asset amounts.
+        asset (str): Asset symbol to look up (e.g., "USDT").
+    
+    Returns:
+        float: The free amount for the asset, or 0.0 if the asset is not present or has no value.
+    """
     free = bal.get("free") or {}
     return float(free.get(asset, 0) or 0)
 
 def main():
+    """
+    Run a live-market buy reconciliation test against Binance US and validate that a real fill occurred.
+    
+    Performs these steps: verifies MODE is "live" and ALLOW_LIVE_FILL_TEST is enabled; reads SYMBOL and STAKE_QUOTE from the environment; creates an exchange client using environment API credentials; verifies the symbol uses USDT as quote and that sufficient free USDT exists; places a market buy spending up to STAKE_QUOTE USDT (using `quoteOrderQty` when supported); waits briefly, refetches balances, and validates that free BTC increased and free USDT decreased. Prints progress/status lines (e.g., GATE11_OK, GATE11_PASS) and exits via the script's error path when validation or preconditions fail.
+    """
     mode = os.getenv("MODE", "live").lower()
     if mode != "live":
         die("Refusing: MODE must be live for Gate 11 (this is a real fill test).")

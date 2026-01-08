@@ -2,6 +2,7 @@
 set -euo pipefail
 cd "$HOME/projects/AlgonovaX"
 
+# dump prints a header for the specified file and outputs its first 260 lines, or "(missing)" if the file does not exist.
 dump () {
   local f="$1"
   echo
