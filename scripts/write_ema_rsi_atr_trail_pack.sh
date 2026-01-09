@@ -88,7 +88,7 @@ def generate_signal(
             init_sl = max(0.0, float(entry_price) - atr_k * atr_entry)
 
             # trailing stop from highest high since entry using current ATR
-            hh = float(hi.iloc[entry_bar:]).max() if entry_bar < len(hi) else float(hi.iloc[-1])
+            hh = float(hi.iloc[entry_bar:].max()) if entry_bar < len(hi) else float(hi.iloc[-1])
             trail_sl = max(0.0, hh - trail_k * atr1)
             sl = max(init_sl, trail_sl)
 
