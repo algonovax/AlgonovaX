@@ -1,0 +1,426 @@
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+import time
+from collections import deque
+from itsdangerous import URLSafeTimedSerializer, BadSignature
+from pathlib import Path
+from typing import Optional
+
+import pyotp
+from argon2 import PasswordHasher, exceptions as argon2_exc
+from nicegui import app, ui
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse, Response
+
+# Must run under systemd user service
+if os.environ.get("INVOCATION_ID") is None:
+    raise SystemExit("Run via systemd user service (algonovax-gui.service), not manually.")
+
+PROJECT_DIR = Path(os.environ.get("ALGONOVAX_PROJECT_DIR", Path(__file__).resolve().parents[2]))
+DATA_DIR = PROJECT_DIR / "data"
+LOG_DIR = PROJECT_DIR / "logs"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+CFG_DIR = Path.home() / ".config" / "algonovax"
+USERS_FILE = CFG_DIR / "users.json"
+
+AUDIT_LOG = LOG_DIR / "gui_audit.log"
+AUDIT_LOG.touch(exist_ok=True)
+os.chmod(AUDIT_LOG, 0o600)
+
+SIGNING_SECRET_FILE = CFG_DIR / "signing_secret"
+if not SIGNING_SECRET_FILE.exists():
+    SIGNING_SECRET_FILE.write_text(os.urandom(32).hex(), encoding="utf-8")
+    os.chmod(SIGNING_SECRET_FILE, 0o600)
+SIGNING_SECRET = SIGNING_SECRET_FILE.read_text(encoding="utf-8").strip()
+signer = URLSafeTimedSerializer(SIGNING_SECRET, salt="algonovax-gui")
+
+ALLOW_REMOTE = os.environ.get("ALGONOVAX_GUI_ALLOW_REMOTE", "0").strip() == "1"
+ALLOWLIST = {x.strip() for x in os.environ.get("ALGONOVAX_GUI_ALLOWLIST", "127.0.0.1").split(",") if x.strip()}
+
+SESSION_TTL = int(os.environ.get("ALGONOVAX_GUI_SESSION_TTL", "3600"))
+
+MAX_ATTEMPTS = int(os.environ.get("ALGONOVAX_GUI_LOGIN_MAX_ATTEMPTS", "5"))
+WINDOW_SEC = int(os.environ.get("ALGONOVAX_GUI_LOGIN_WINDOW_SEC", "300"))
+LOCKOUT_SEC = int(os.environ.get("ALGONOVAX_GUI_LOGIN_LOCKOUT_SEC", "900"))
+
+ph = PasswordHasher()
+
+SERVICES = [
+    "algonovax-engine.service",
+    "algonovax-gui.service",
+    "algonovax-ui.service",
+    "algonovax.service",
+    "algonovax-killswitch.path",
+    "algonovax-killswitch.timer",
+    "algonovax-backup.timer",
+]
+
+REPORT_FILES = [
+    "data/state.json",
+    "data/backtest_report.json",
+    "data/backtest_last.json",
+    "data/backtest_trades.json",
+    "data/audit_report.json",
+]
+
+# ---- middleware ----
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        resp: Response = await call_next(request)
+        resp.headers["X-Content-Type-Options"] = "nosniff"
+        resp.headers["X-Frame-Options"] = "DENY"
+        resp.headers["Referrer-Policy"] = "no-referrer"
+        resp.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        resp.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        resp.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+        resp.headers["Content-Security-Policy"] = "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self' ws: wss:; img-src 'self' data: blob:;"
+        return resp
+
+class AllowlistMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if not ALLOW_REMOTE:
+            return await call_next(request)
+        client = request.client.host if request.client else ""
+        if client not in ALLOWLIST:
+            return PlainTextResponse("Forbidden", status_code=403)
+        return await call_next(request)
+
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(AllowlistMiddleware)
+
+# ---- auth state ----
+
+_attempts: dict[str, deque[float]] = {}
+_locked_until: dict[str, float] = {}
+
+def _client_ip() -> str:
+    try:
+        req = app.request
+        return req.client.host if req and req.client else "unknown"
+    except Exception:
+        return "unknown"
+
+def audit(event: str, **fields: str) -> None:
+    try:
+        user = str(app.storage.user.get("username") or "-")
+        ip = _client_ip()
+        line = {"ts": time.time(), "event": event, "user": user, "ip": ip, **fields}
+        AUDIT_LOG.write_text(AUDIT_LOG.read_text(encoding="utf-8") + json.dumps(line, sort_keys=True) + "\n", encoding="utf-8")
+    except Exception:
+        pass
+
+def can_attempt(ip: str) -> tuple[bool, str]:
+    t = time.time()
+    lu = _locked_until.get(ip, 0.0)
+    if t < lu:
+        return False, f"Locked. Try again in {int(lu - t)}s"
+    dq = _attempts.setdefault(ip, deque())
+    while dq and (t - dq[0]) > WINDOW_SEC:
+        dq.popleft()
+    if len(dq) >= MAX_ATTEMPTS:
+        _locked_until[ip] = t + LOCKOUT_SEC
+        dq.clear()
+        return False, f"Too many attempts. Locked for {LOCKOUT_SEC}s"
+    return True, ""
+
+def record_attempt(ip: str) -> None:
+    t = time.time()
+    dq = _attempts.setdefault(ip, deque())
+    dq.append(t)
+    while dq and (t - dq[0]) > WINDOW_SEC:
+        dq.popleft()
+
+def load_users() -> dict:
+    if not USERS_FILE.exists():
+        raise SystemExit(f"Missing users DB: {USERS_FILE}. Create via scripts/gui_user_admin.py")
+    return json.loads(USERS_FILE.read_text(encoding="utf-8"))
+
+def authed() -> bool:
+    ok = bool(app.storage.user.get("auth_ok"))
+    if not ok:
+        return False
+    if str(app.storage.user.get("auth_ip") or "") != _client_ip():
+        app.storage.user.clear()
+        return False
+    ts = float(app.storage.user.get("auth_ts", 0.0))
+    if ts <= 0.0 or (time.time() - ts) > SESSION_TTL:
+        app.storage.user.clear()
+        return False
+    return True
+
+def touch_auth(username: str, role: str) -> None:
+    app.storage.user["auth_ok"] = True
+    app.storage.user["auth_ts"] = time.time()
+    app.storage.user["username"] = username
+    app.storage.user["role"] = role
+    app.storage.user["auth_ip"] = _client_ip()
+    # reauth window for dangerous ops
+    app.storage.user["reauth_ts"] = 0.0
+    audit("login_ok", role=role)
+
+def role() -> str:
+    return str(app.storage.user.get("role") or "viewer")
+
+def require_role(*allowed: str) -> bool:
+    return role() in set(allowed)
+
+def mark_reauth() -> None:
+    app.storage.user["reauth_ts"] = time.time()
+
+def has_recent_reauth(max_age_sec: int = 300) -> bool:
+    ts = float(app.storage.user.get("reauth_ts", 0.0))
+    return ts > 0.0 and (time.time() - ts) <= max_age_sec
+
+def make_intent(name: str) -> str:
+    # binds to user+ip
+    payload = {"n": name, "u": str(app.storage.user.get("username") or ""), "ip": _client_ip()}
+    return signer.dumps(payload)
+
+def verify_intent(token: str, name: str, max_age_sec: int = 120) -> bool:
+    try:
+        payload = signer.loads(token, max_age=max_age_sec)
+        return payload.get("n") == name and payload.get("u") == str(app.storage.user.get("username") or "") and payload.get("ip") == _client_ip()
+    except BadSignature:
+        return False
+
+# ---- helpers ----
+
+def run_cmd(cmd: list[str], cwd: Optional[Path] = None) -> tuple[int, str]:
+    try:
+        p = subprocess.run(
+            cmd,
+            cwd=str(cwd or PROJECT_DIR),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+        )
+        return p.returncode, p.stdout
+    except Exception as e:
+        return 999, f"Exception running {cmd}: {e!r}"
+
+def read_text(rel: str, max_bytes: int = 200_000) -> str:
+    try:
+        p = (PROJECT_DIR / rel).resolve()
+        if not str(p).startswith(str(PROJECT_DIR.resolve())):
+            return f"[blocked path]\n{rel}"
+        if not p.exists():
+            return f"[missing]\n{rel}"
+        data = p.read_bytes()[:max_bytes]
+        return data.decode("utf-8", errors="replace")
+    except Exception as e:
+        return f"[error reading {rel}] {e!r}"
+
+# ---- pages ----
+
+@ui.page("/login")
+def login_page() -> None:
+    ui.label("AlgoNovaX").style("font-size: 28px; font-weight: 700;")
+    ui.label("Login required").classes("text-sm")
+
+    u = ui.input("Username").classes("w-full")
+    p = ui.input("Password", password=True, password_toggle_button=True).classes("w-full")
+    t = ui.input("TOTP (if enabled)", placeholder="123456").classes("w-full")
+    msg = ui.label("").classes("text-sm")
+
+    def do_login() -> None:
+        ip = _client_ip()
+        ok, reason = can_attempt(ip)
+        if not ok:
+            msg.text = reason
+            return
+
+        try:
+            db = load_users().get("users", {})
+            rec = db.get((u.value or "").strip())
+            if not rec:
+                record_attempt(ip)
+                msg.text = "Invalid credentials"
+                return
+
+            try:
+                ph.verify(rec["pass_hash"], (p.value or ""))
+            except argon2_exc.VerifyMismatchError:
+                record_attempt(ip)
+                msg.text = "Invalid credentials"
+                return
+
+            secret = (rec.get("totp_secret") or "").strip()
+            if secret:
+                code = (t.value or "").strip().replace(" ", "")
+                if not code or not pyotp.TOTP(secret).verify(code, valid_window=1):
+                    record_attempt(ip)
+                    msg.text = "Invalid TOTP"
+                    return
+
+            touch_auth((u.value or "").strip(), str(rec.get("role") or "viewer"))
+            ui.open("/")
+        except Exception as e:
+            msg.text = f"Login error: {e!r}"
+
+    ui.button("Login", on_click=do_login)
+
+@ui.page("/logout")
+def logout_page() -> None:
+    app.storage.user.clear()
+    ui.label("Logged out.")
+    ui.link("Back to login", "/login")
+
+@ui.page("/")
+def main() -> None:
+    if not authed():
+        ui.open("/login")
+        return
+
+    ui.label("AlgoNovaX").style("font-size: 28px; font-weight: 700;")
+
+    with ui.row().classes("w-full"):
+        ui.label(f"Project: {PROJECT_DIR}").classes("text-sm")
+        ui.label(f"Python: {sys.executable}").classes("text-sm")
+        ui.label(f"User: {app.storage.user.get('username')} ({role()})").classes("text-sm")
+        ui.link("Logout", "/logout").classes("text-sm")
+
+    output = (
+        ui.textarea(label="Output", value="", placeholder="Command output will appear here")
+        .props("readonly")
+        .classes("w-full")
+        .style("min-height: 420px;")
+    )
+
+    def show(rc: int, out: str) -> None:
+        output.value = f"[exit={rc}]\n{out}"
+
+    # ---- buttons (RBAC) ----
+    with ui.row().classes("w-full"):
+        def on_health() -> None:
+            rc, out = run_cmd([sys.executable, "-c", "import yaml; print('ok:yaml'); import nicegui; print('ok:nicegui')"])
+            show(rc, out)
+
+        def on_backtest() -> None:
+            if not require_role("admin", "operator"):
+                show(403, "Forbidden: requires operator/admin")
+                return
+            script = PROJECT_DIR / "scripts" / "backtest_runner.py"
+            if not script.exists():
+                show(2, f"Missing: {script}")
+                return
+            rc, out = run_cmd([sys.executable, "-u", str(script)])
+            show(rc, out)
+
+        def on_run_clean() -> None:
+            # dangerous: require admin + recent reauth + short-lived intent token
+            if not require_role("admin"):
+                show(403, "Forbidden: requires admin")
+                audit("deny", action="run_clean")
+                return
+            if not has_recent_reauth():
+                show(401, "Re-auth required (Admin). Click 'Re-auth' then retry.")
+                audit("deny", action="run_clean", reason="reauth_required")
+                return
+
+            token = make_intent("run_clean")
+            dlg = ui.dialog()
+            with dlg, ui.card():
+                ui.label("Confirm: Run Clean")
+                ui.label("This is a dangerous action. Token expires in 120s.").classes("text-sm")
+                tbox = ui.input("Type CONFIRM", placeholder="CONFIRM").classes("w-full")
+                info = ui.label("").classes("text-sm")
+
+                def go() -> None:
+                    if (tbox.value or "").strip() != "CONFIRM":
+                        info.text = "Type CONFIRM"
+                        return
+                    if not verify_intent(token, "run_clean"):
+                        info.text = "Expired/invalid token"
+                        audit("deny", action="run_clean", reason="bad_token")
+                        return
+                    script = PROJECT_DIR / "scripts" / "run_clean.py"
+                    if not script.exists():
+                        show(2, f"Missing: {script}")
+                        dlg.close()
+                        return
+                    audit("action", action="run_clean")
+                    rc, out = run_cmd([sys.executable, "-u", str(script)])
+                    show(rc, out)
+                    dlg.close()
+
+                ui.button("Run", on_click=go)
+                ui.button("Cancel", on_click=dlg.close)
+            dlg.open()
+
+        def on_reauth() -> None:
+            # password-only reauth (fast). If you want TOTP too, say so.
+            try:
+                db = load_users().get("users", {})
+                user = str(app.storage.user.get("username") or "")
+                rec = db.get(user)
+                if not rec or str(rec.get("role")) != "admin":
+                    show(403, "Re-auth only for admin")
+                    return
+
+                dlg = ui.dialog()
+                with dlg, ui.card():
+                    ui.label("Admin re-auth required")
+                    pw = ui.input("Password", password=True, password_toggle_button=True).classes("w-full")
+                    info = ui.label("").classes("text-sm")
+
+                    def ok() -> None:
+                        try:
+                            ph.verify(rec["pass_hash"], (pw.value or ""))
+                            mark_reauth()
+                            info.text = "OK"
+                            dlg.close()
+                        except Exception:
+                            info.text = "Invalid password"
+
+                    ui.button("Confirm", on_click=ok)
+                    ui.button("Cancel", on_click=dlg.close)
+                dlg.open()
+            except Exception as e:
+                show(500, f"Reauth error: {e!r}")
+
+        ui.button("Health Check", on_click=on_health)
+        ui.button("Backtest Runner (op/admin)", on_click=on_backtest)
+        ui.button("Re-auth (admin)", on_click=on_reauth)
+        ui.button("Run Clean (admin)", on_click=on_run_clean)
+
+    ui.separator()
+
+    with ui.row().classes("w-full"):
+        ui.label("Reports").style("font-weight: 700;")
+    for rel in REPORT_FILES:
+        with ui.expansion(rel, icon="description").classes("w-full"):
+            ui.code(read_text(rel)).classes("w-full")
+
+    with ui.row().classes("w-full"):
+        ui.label("Systemd status").style("font-weight: 700;")
+    for svc in SERVICES:
+        with ui.expansion(svc, icon="settings").classes("w-full"):
+            rc, out = run_cmd(["bash", "-lc", f"systemctl --user status {svc} --no-pager -l || true"])
+            ui.code(out).classes("w-full")
+
+def cli() -> int:
+    try:
+        # Always bind loopback. Remote access is via Caddy on 9443.
+        ui.run(
+            title="AlgoNovaX",
+            reload=False,
+            show=False,
+            port=int(os.environ.get("ALGONOVAX_GUI_PORT", "8790")),
+            host="127.0.0.1",
+        )
+        return 0
+    except Exception as e:
+        print(f"GUI failed: {e!r}", file=sys.stderr)
+        return 1
+
+if __name__ in {"__main__", "algonovax.gui.app"}:
+    raise SystemExit(cli())

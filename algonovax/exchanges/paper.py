@@ -1,6 +1,7 @@
 import os, json
 from datetime import datetime
 from .base import BaseExchange
+from algonovax.strategies.types import Side, coerce_side
 
 class PaperExchange(BaseExchange):
     def __init__(self, wallet_path):
@@ -13,7 +14,8 @@ class PaperExchange(BaseExchange):
     def execute_trade(self, symbol, side, amount, price):
         amount = float(amount)
         price = float(price)
-        if side == "buy":
+        if coerce_side(side) == Side.BUY:
+
             cost = amount * price
             if self.wallet["balance"]["USD"] < cost:
                 raise RuntimeError("Insufficient USD balance")

@@ -1,0 +1,11 @@
+# Candidate must beat these on TEST window to promote
+test:
+  min_trades: 10
+  min_net_pnl_quote: 0.0
+  max_drawdown_quote: 250.0
+  min_win_rate: 0.40
+
+# Tie-breaker score for promotion ranking
+score:
+  # score = net_pnl / max(1, max_dd) * (wins/max(1,trades)) * log1p(trades)
+  require_positive_score: true
