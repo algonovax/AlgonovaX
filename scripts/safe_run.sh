@@ -2,7 +2,7 @@
 # Never kills your terminal. Logs everything.
 set -u
 
-REPO="$HOME/projects/AlgonovaX"
+REPO="${ALGONOVAX_ROOT:-$HOME/AlgonovaX}"
 LOGDIR="$REPO/logs"
 mkdir -p "$LOGDIR"
 

@@ -18,7 +18,10 @@ PAIR = "XBTUSD"
 NS_PER_SEC = 1_000_000_000
 NS_PER_DAY = 24 * 60 * 60 * NS_PER_SEC
 
-def fetch_trades(pair: str, days: int, sleep_s: float = 1.0, max_pages: int = 20000) -> list[list[Any]]:
+
+def fetch_trades(
+    pair: str, days: int, sleep_s: float = 1.0, max_pages: int = 20000
+) -> list[list[Any]]:
     now_ns = int(time.time() * NS_PER_SEC)
     since_ns = now_ns - days * NS_PER_DAY
 
@@ -28,7 +31,9 @@ def fetch_trades(pair: str, days: int, sleep_s: float = 1.0, max_pages: int = 20
     stagnant = 0
 
     while pages < max_pages:
-        r = requests.get(TRADES_URL, params={"pair": pair, "since": str(since)}, timeout=30)
+        r = requests.get(
+            TRADES_URL, params={"pair": pair, "since": str(since)}, timeout=30
+        )
         r.raise_for_status()
         data: dict[str, Any] = r.json()
 
@@ -68,6 +73,7 @@ def fetch_trades(pair: str, days: int, sleep_s: float = 1.0, max_pages: int = 20
 
     return out
 
+
 def main() -> int:
     days = 30
     trades = fetch_trades(PAIR, days=days)
@@ -79,6 +85,7 @@ def main() -> int:
     out_path.write_text(json.dumps(trades), encoding="utf-8")
     print(f"WROTE {out_path} trades={len(trades)}")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

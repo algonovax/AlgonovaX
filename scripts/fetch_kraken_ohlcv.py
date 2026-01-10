@@ -21,6 +21,7 @@ INTERVAL_MIN = 5
 MS_PER_DAY = 24 * 60 * 60 * 1000
 SEC_PER_MIN = 60
 
+
 def fetch_ohlc_kraken(pair: str, interval_min: int, days: int) -> list[list[float]]:
     now_ms = int(time.time() * 1000)
     since_ms = now_ms - days * MS_PER_DAY
@@ -67,7 +68,11 @@ def fetch_ohlc_kraken(pair: str, interval_min: int, days: int) -> list[list[floa
         for row in rows:
             try:
                 ts_sec = int(row[0])
-                o = float(row[1]); h = float(row[2]); l = float(row[3]); c = float(row[4]); v = float(row[6])
+                o = float(row[1])
+                h = float(row[2])
+                l = float(row[3])
+                c = float(row[4])
+                v = float(row[6])
             except Exception:
                 continue
 
@@ -106,6 +111,7 @@ def fetch_ohlc_kraken(pair: str, interval_min: int, days: int) -> list[list[floa
     out = sorted({r[0]: r for r in out}.values(), key=lambda x: x[0])
     return out
 
+
 def main() -> int:
     days = 90
     rows = fetch_ohlc_kraken(PAIR, INTERVAL_MIN, days)
@@ -119,6 +125,7 @@ def main() -> int:
     out_path.write_text(json.dumps(rows), encoding="utf-8")
     print(f"WROTE {out_path} candles={len(rows)}")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

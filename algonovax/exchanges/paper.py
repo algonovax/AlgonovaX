@@ -1,7 +1,9 @@
-import os, json
+import os
+import json
 from datetime import datetime
 from .base import BaseExchange
 from algonovax.strategies.types import Side, coerce_side
+
 
 class PaperExchange(BaseExchange):
     def __init__(self, wallet_path):
@@ -15,7 +17,6 @@ class PaperExchange(BaseExchange):
         amount = float(amount)
         price = float(price)
         if coerce_side(side) == Side.BUY:
-
             cost = amount * price
             if self.wallet["balance"]["USD"] < cost:
                 raise RuntimeError("Insufficient USD balance")
@@ -27,13 +28,15 @@ class PaperExchange(BaseExchange):
             self.wallet["balance"]["BTC"] -= amount
             self.wallet["balance"]["USD"] += amount * price
 
-        self.wallet.setdefault("trades", []).append({
-            "symbol": symbol,
-            "side": side,
-            "amount": amount,
-            "price": price,
-            "timestamp": datetime.utcnow().isoformat()
-        })
+        self.wallet.setdefault("trades", []).append(
+            {
+                "symbol": symbol,
+                "side": side,
+                "amount": amount,
+                "price": price,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
 
         with open(self.wallet_path, "w") as f:
             json.dump(self.wallet, f, indent=2)

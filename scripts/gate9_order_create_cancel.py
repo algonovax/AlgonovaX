@@ -6,9 +6,11 @@ from decimal import Decimal, ROUND_DOWN
 
 import ccxt
 
+
 def die(msg: str, code: int = 2) -> None:
     print(f"GATE9_FAIL: {msg}", file=sys.stderr)
     raise SystemExit(code)
+
 
 def qd(x: Decimal, step: Decimal) -> Decimal:
     # quantize down to step (floor)
@@ -16,8 +18,10 @@ def qd(x: Decimal, step: Decimal) -> Decimal:
         return x
     return (x / step).to_integral_value(rounding=ROUND_DOWN) * step
 
+
 def d(x) -> Decimal:
     return Decimal(str(x))
+
 
 def mk_exchange(name: str):
     name = name.lower()
@@ -39,6 +43,7 @@ def mk_exchange(name: str):
         return ex
     die(f"Unsupported EXCHANGE={name}")
 
+
 def main():
     ex_name = os.getenv("EXCHANGE", "binanceus")
     mode = os.getenv("MODE", "testnet").lower()
@@ -48,7 +53,9 @@ def main():
 
     symbol = os.getenv("SYMBOL", "BTC/USDT")
     stake_quote = d(os.getenv("STAKE_QUOTE", "5"))  # USD/USDT to spend target
-    price_mult = d(os.getenv("PRICE_MULT", "0.5"))  # 0.5 => 50% of last price (won't fill)
+    price_mult = d(
+        os.getenv("PRICE_MULT", "0.5")
+    )  # 0.5 => 50% of last price (won't fill)
 
     try:
         ex = mk_exchange(ex_name)
@@ -122,6 +129,7 @@ def main():
         die(f"{type(e).__name__}: {e}", 3)
     except Exception as e:
         die(f"{type(e).__name__}: {e}", 4)
+
 
 if __name__ == "__main__":
     main()

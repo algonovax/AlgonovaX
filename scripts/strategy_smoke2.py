@@ -16,7 +16,9 @@ def make_df(n: int = 600) -> pd.DataFrame:
     high = np.maximum(open_, close) + 0.5
     low = np.minimum(open_, close) - 0.5
     volume = np.full(n, 1000.0)
-    return pd.DataFrame({"open": open_, "high": high, "low": low, "close": close, "volume": volume})
+    return pd.DataFrame(
+        {"open": open_, "high": high, "low": low, "close": close, "volume": volume}
+    )
 
 
 def main() -> int:

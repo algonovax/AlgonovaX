@@ -20,12 +20,14 @@ INTERVAL_MS = INTERVAL_MIN * 60_000
 NS_PER_SEC = 1_000_000_000
 NS_PER_DAY = 24 * 60 * 60 * NS_PER_SEC
 
+
 def parse_trade(row) -> tuple[int, float, float]:
     # Kraken trade row: [price, volume, time, side, orderType, misc]
     price = float(row[0])
     vol = float(row[1])
     ts_ms = int(float(row[2]) * 1000.0)
     return ts_ms, price, vol
+
 
 def main() -> int:
     days = 30
@@ -38,7 +40,9 @@ def main() -> int:
     stagnant = 0
 
     while True:
-        r = requests.get(TRADES_URL, params={"pair": PAIR, "since": str(since)}, timeout=30)
+        r = requests.get(
+            TRADES_URL, params={"pair": PAIR, "since": str(since)}, timeout=30
+        )
         r.raise_for_status()
         data: dict[str, Any] = r.json()
 
@@ -65,8 +69,10 @@ def main() -> int:
                 if c is None:
                     candles[bucket] = [float(bucket), price, price, price, price, vol]
                 else:
-                    if price > c[2]: c[2] = price
-                    if price < c[3]: c[3] = price
+                    if price > c[2]:
+                        c[2] = price
+                    if price < c[3]:
+                        c[3] = price
                     c[4] = price
                     c[5] += vol
 
@@ -94,9 +100,13 @@ def main() -> int:
     end_ts = int(rows_out[-1][0])
 
     out = CANDLES_DIR / f"kraken_BTC_USD_{INTERVAL_MIN}m_{start_ts}_{end_ts}.json"
-    out.write_text(json.dumps([[int(r[0]), r[1], r[2], r[3], r[4], r[5]] for r in rows_out]), encoding="utf-8")
+    out.write_text(
+        json.dumps([[int(r[0]), r[1], r[2], r[3], r[4], r[5]] for r in rows_out]),
+        encoding="utf-8",
+    )
     print(f"WROTE {out} candles={len(rows_out)}")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import os
 import sys
-import pandas as pd
 
 from algonovax.data.candles import load_candles_json
 from algonovax.strategies.indicators import ema, rsi
@@ -39,15 +38,17 @@ def main():
     if len(close) < 10:
         die("Not enough rows after warmup")
 
-    trend_rising = (e_trend >= e_trend.shift(3))
+    trend_rising = e_trend >= e_trend.shift(3)
     long_regime = (close > e_trend) | (trend_rising & (close > e_trend * 0.998))
 
-    fast_ok = (close >= e_fast) | ((close.shift(1) < e_fast.shift(1)) & (close > e_fast))
+    fast_ok = (close >= e_fast) | (
+        (close.shift(1) < e_fast.shift(1)) & (close > e_fast)
+    )
 
     rsi_cross_up = (r.shift(1) <= rsi_entry) & (r > rsi_entry)
 
-    both = (long_regime & fast_ok)
-    all3 = (both & rsi_cross_up)
+    both = long_regime & fast_ok
+    all3 = both & rsi_cross_up
 
     print("rows_after_warmup", len(close))
     print("rsi_entry", rsi_entry)
@@ -60,7 +61,14 @@ def main():
     if int(all3.sum()) > 0:
         idx = all3[all3].index[:10]
         for i in idx:
-            print("BUY_GATE_AT_INDEX", int(i), "close", float(close.loc[i]), "rsi", float(r.loc[i]))
+            print(
+                "BUY_GATE_AT_INDEX",
+                int(i),
+                "close",
+                float(close.loc[i]),
+                "rsi",
+                float(r.loc[i]),
+            )
 
     # show best candidate if none
     if int(all3.sum()) == 0:

@@ -3,9 +3,11 @@ import os
 import sys
 import ccxt
 
+
 def die(msg: str, code: int = 2) -> None:
     print(f"PREFLIGHT_FAIL: {msg}", file=sys.stderr)
     raise SystemExit(code)
+
 
 def mk_exchange():
     key = os.getenv("BINANCEUS_API_KEY")
@@ -13,6 +15,7 @@ def mk_exchange():
     if not key or not sec:
         die("Missing BINANCEUS_API_KEY/BINANCEUS_API_SECRET")
     return ccxt.binanceus({"apiKey": key, "secret": sec, "enableRateLimit": True})
+
 
 def main():
     symbol = os.getenv("SYMBOL", "BTC/USDT")
@@ -29,8 +32,8 @@ def main():
         print("symbol", symbol, "base", base, "quote", quote)
 
         bal = ex.fetch_balance()
-        free = (bal.get("free") or {})
-        total = (bal.get("total") or {})
+        free = bal.get("free") or {}
+        total = bal.get("total") or {}
 
         for a in [quote, "USD", "USDT"]:
             if not a:
@@ -41,6 +44,7 @@ def main():
         print("PREFLIGHT_PASS")
     except ccxt.BaseError as e:
         die(f"{type(e).__name__}: {e}", 3)
+
 
 if __name__ == "__main__":
     main()

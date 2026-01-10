@@ -1,58 +1,412 @@
 from __future__ import annotations
 
-
-from algonovax.intents import pop_new_intents
+import importlib
 import os
+import pkgutil
 import signal
-import sys
 import threading
 import time
 import traceback
+from typing import Any
 
 from algonovax.config import load_settings
-from algonovax.engine import run_loop
+from algonovax.engine import run
+from algonovax.intents import pop_new_intents
+
+try:
+    from algonovax.strategies._adapter import StrategyAdapter  # type: ignore
+except Exception:
+    StrategyAdapter = None  # type: ignore
+
+
+def normalize_cfg(settings: Any) -> dict[str, Any]:
+    if settings is None:
+        return {}
+    if isinstance(settings, dict):
+        return settings
+
+    md = getattr(settings, "model_dump", None)  # pydantic v2
+    if callable(md):
+        try:
+            d = md()
+            if isinstance(d, dict):
+                return d
+        except Exception:
+            pass
+
+    dd = getattr(settings, "dict", None)  # pydantic v1
+    if callable(dd):
+        try:
+            d = dd()
+            if isinstance(d, dict):
+                return d
+        except Exception:
+            pass
+
+    try:
+        d = dict(getattr(settings, "__dict__", {}) or {})
+        if isinstance(d, dict):
+            return d
+    except Exception:
+        pass
+
+    return {"_raw_settings": repr(settings)}
+
 
 def kill_switch_path() -> str:
-    return os.getenv("KILL_SWITCH_PATH", os.path.expanduser("~/projects/AlgonovaX/data/KILL_SWITCH"))
+    root = os.environ.get("ALGONOVAX_ROOT") or os.path.expanduser("~/AlgonovaX")
+    return os.getenv("KILL_SWITCH_PATH") or os.path.join(root, "data", "KILL_SWITCH")
+
 
 def _watch_kill_switch(stop_evt: threading.Event) -> None:
-    # Hard stop even if run_loop is stuck or swallowing exceptions.
     while not stop_evt.is_set():
         try:
             ks = kill_switch_path()
             if os.path.exists(ks):
                 print(f"[engine] kill_switch_triggered ({ks}); hard-exit", flush=True)
-                os._exit(2)
+                raise SystemExit(2)
         except Exception:
             print("[engine] kill-switch watcher error:", flush=True)
             traceback.print_exc()
         stop_evt.wait(0.5)
 
+
 def _heartbeat(stop_evt: threading.Event) -> None:
     while not stop_evt.is_set():
         try:
             ks = kill_switch_path()
-            print(f"[engine] alive ts={int(time.time())} kill_switch={ks} exists={os.path.exists(ks)}", flush=True)
+            print(
+                f"[engine] alive ts={int(time.time())} kill_switch={ks} exists={os.path.exists(ks)}",
+                flush=True,
+            )
         except Exception:
             print("[engine] heartbeat error:", flush=True)
             traceback.print_exc()
         stop_evt.wait(10)
 
+
+def resolve_strategy(cfg: dict[str, Any]):
+    name = (
+        os.environ.get("ALGONOVAX_STRATEGY")
+        or cfg.get("strategy")
+        or cfg.get("strategy_name")
+        or ""
+    ).strip()
+    if not name:
+        name = "ema_rsi_atr"
+
+    # 1) registry, if it returns a usable object
+    try:
+        reg = importlib.import_module("algonovax.strategies.registry")
+        for fn_name in ("get_strategy", "load", "create", "build"):
+            fn = getattr(reg, fn_name, None)
+            if callable(fn):
+                try:
+                    obj = fn(name)
+                    if (
+                        obj is not None
+                        and hasattr(obj, "on_start")
+                        and (
+                            hasattr(obj, "on_candle")
+                            or hasattr(obj, "decide")
+                            or hasattr(obj, "on_tick")
+                        )
+                    ):
+                        return obj
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # 2) module candidates
+    candidates: list[str] = []
+    if "." in name:
+        candidates.append(name)
+    candidates.append(f"algonovax.strategies.{name}")
+
+    # try class Strategy first
+    last_err: Exception | None = None
+    for mn in candidates:
+        try:
+            mod = importlib.import_module(mn)
+            if hasattr(mod, "Strategy"):
+                return mod.Strategy()
+        except Exception as e:
+            # TB_ON_RUNNER_FATAL
+            tb = traceback.format_exc()
+            last_err = e
+
+    # function-style strategy -> adapt
+    for mn in candidates:
+        try:
+            mod = importlib.import_module(mn)
+
+            fn = None
+            for fn_name in ("generate_signal", "decide", "signal", "get_signal"):
+                cand = getattr(mod, fn_name, None)
+                if callable(cand):
+                    fn = cand
+                    break
+            if fn is None:
+                continue
+
+            if StrategyAdapter is not None:
+                return StrategyAdapter(name=name, fn=fn)  # type: ignore
+
+            class _LocalStrategy:
+                def __init__(self):
+                    self.name = name
+                    self._rows: list[dict[str, Any]] = []
+                    self._in_pos: bool = False
+                    self._entry_index: int | None = None
+                    self._entry_price: float | None = None
+
+                def on_start(self, *_a, **_k):
+                    return None
+
+                def _to_row(self, candle: Any) -> dict[str, Any]:
+                    c = (
+                        candle
+                        if isinstance(candle, dict)
+                        else getattr(candle, "__dict__", {}) or {}
+                    )
+                    ts = (
+                        c.get("ts") or c.get("timestamp") or c.get("time") or c.get("t")
+                    )
+                    return {
+                        "ts": ts,
+                        "open": float(c.get("open", c.get("o", 0.0)) or 0.0),
+                        "high": float(c.get("high", c.get("h", 0.0)) or 0.0),
+                        "low": float(c.get("low", c.get("l", 0.0)) or 0.0),
+                        "close": float(c.get("close", c.get("c", 0.0)) or 0.0),
+                        "volume": float(c.get("volume", c.get("v", 0.0)) or 0.0),
+                    }
+
+                def _signal_with_action(self, sig: Any):
+                    if sig is None:
+                        return None
+                    if (
+                        hasattr(sig, "action")
+                        and hasattr(sig, "side")
+                        and hasattr(sig, "stake_quote")
+                    ):
+                        return sig
+
+                    def _get(obj: Any, key: str, default: Any = None) -> Any:
+                        if obj is None:
+                            return default
+                        if isinstance(obj, dict):
+                            return obj.get(key, default)
+                        return getattr(obj, key, default)
+
+                    raw_side = None
+                    if isinstance(sig, str):
+                        raw_side = sig
+                    else:
+                        raw_side = (
+                            _get(sig, "side", None)
+                            or _get(sig, "action", None)
+                            or _get(sig, "signal", None)
+                            or _get(sig, "type", None)
+                        )
+
+                    def _norm(x: Any) -> str:
+                        x = str(x or "hold").strip().lower()
+                        if "." in x:
+                            x = x.split(".")[-1]
+                        if x in ("hold", "buy", "sell"):
+                            return x
+                        if "buy" in x:
+                            return "buy"
+                        if "sell" in x:
+                            return "sell"
+                        return "hold"
+
+                    class _Sig:
+                        def __init__(self, side: Any, raw: Any):
+                            self.side = _norm(side)
+                            self.action = self.side
+                            self.raw = raw
+
+                            self.symbol = str(
+                                _get(raw, "symbol", "") or _get(raw, "pair", "") or ""
+                            )
+                            self.price = float(_get(raw, "price", 0.0) or 0.0)
+                            self.reason = str(_get(raw, "reason", "") or "")
+
+                            self.stake_quote = float(
+                                _get(raw, "stake_quote", 0.0)
+                                or _get(raw, "usd", 0.0)
+                                or 0.0
+                            )
+                            self.usd = float(_get(raw, "usd", self.stake_quote) or 0.0)
+                            self.qty_base = float(
+                                _get(raw, "qty_base", 0.0)
+                                or _get(raw, "qty", 0.0)
+                                or 0.0
+                            )
+                            self.qty = float(_get(raw, "qty", self.qty_base) or 0.0)
+
+                            self.stop_loss = _get(raw, "stop_loss", None)
+                            self.take_profit = _get(raw, "take_profit", None)
+                            self.confidence = float(
+                                _get(raw, "confidence", 0.0)
+                                or _get(raw, "p", 0.0)
+                                or 0.0
+                            )
+
+                    return _Sig(raw_side, sig)
+
+                def _pos_from_state(self, state: Any) -> tuple[bool, float | None]:
+                    try:
+                        if state is None:
+                            return False, None
+                        if isinstance(state, dict):
+                            # engine log shows pos_side/pos_entry, sometimes nested position
+                            pos_side = str(state.get("pos_side", "") or "").lower()
+                            pos_qty = float(state.get("pos_qty_base", 0.0) or 0.0)
+                            pos_entry = state.get("pos_entry", None)
+                            if pos_entry is None and isinstance(
+                                state.get("position"), dict
+                            ):
+                                pos_entry = state["position"].get("entry_price", None)
+                                pos_side = str(
+                                    state["position"].get("side", pos_side) or ""
+                                ).lower()
+                                pos_qty = float(
+                                    state["position"].get("qty_base", pos_qty) or 0.0
+                                )
+                            in_pos = (pos_qty > 0.0) or (pos_side in ("long", "buy"))
+                            ep = float(pos_entry) if pos_entry is not None else None
+                            if ep is not None and ep <= 0:
+                                ep = None
+                            return in_pos, ep
+
+                        # object-like
+                        pos_side = str(getattr(state, "pos_side", "") or "").lower()
+                        pos_qty = float(getattr(state, "pos_qty_base", 0.0) or 0.0)
+                        pos_entry = getattr(state, "pos_entry", None)
+                        in_pos = (pos_qty > 0.0) or (pos_side in ("long", "buy"))
+                        ep = float(pos_entry) if pos_entry is not None else None
+                        if ep is not None and ep <= 0:
+                            ep = None
+                        return in_pos, ep
+                    except Exception:
+                        return False, None
+
+                def on_candle(self, candle: Any, state: Any = None):
+                    import pandas as pd
+
+                    self._rows.append(self._to_row(candle))
+                    if len(self._rows) > 2000:
+                        self._rows = self._rows[-2000:]
+
+                    df = pd.DataFrame(self._rows)
+                    try:
+                        if "ts" in df.columns:
+                            df = df.sort_values("ts")
+                    except Exception:
+                        pass
+
+                    # derive position state and persist entry_index on transition
+                    in_pos, ep = self._pos_from_state(state)
+                    if in_pos and not self._in_pos:
+                        self._entry_index = len(df)  # df length at entry
+                        self._entry_price = ep
+                    if not in_pos:
+                        self._entry_index = None
+                        self._entry_price = None
+                    self._in_pos = in_pos
+
+                    termux_fast = os.environ.get("ALGONOVAX_TERMUX_FAST") == "1"
+
+                    if termux_fast:
+                        try:
+                            out = fn(
+                                df,
+                                in_position=in_pos,
+                                entry_price=self._entry_price,
+                                entry_index=self._entry_index,
+                                # make stub runs produce signals frequently
+                                trend_ema=15,
+                                fast_ema=5,
+                                rsi_n=7,
+                                rsi_entry=50.0,
+                                atr_n=7,
+                                impulse_atr=0.05,
+                                min_atr_pct=0.0,
+                                trend_slope_bars=1,
+                                fast_slope_bars=1,
+                                rsi_cross_lookback=2,
+                                max_extension_atr=10.0,
+                                min_pullback_atr=-10.0,
+                                min_hold_bars=1,
+                                max_hold_bars=18,
+                            )
+                        except TypeError:
+                            # older signature (no kwargs)
+                            out = fn(df)
+                    else:
+                        try:
+                            out = fn(
+                                df,
+                                in_position=in_pos,
+                                entry_price=self._entry_price,
+                                entry_index=self._entry_index,
+                            )
+                        except TypeError:
+                            out = fn(df)
+
+                    return self._signal_with_action(out)
+
+                def on_stop(self, *_a, **_k):
+                    return None
+
+            return _LocalStrategy()
+
+        except Exception as e:
+            last_err = e
+
+    # 3) brute-force pick any Strategy class in algonovax.strategies
+    try:
+        pkg = importlib.import_module("algonovax.strategies")
+        for m in pkgutil.iter_modules(pkg.__path__):
+            if m.name.startswith("_"):
+                continue
+            mn = f"{pkg.__name__}.{m.name}"
+            try:
+                mod = importlib.import_module(mn)
+                if hasattr(mod, "Strategy"):
+                    print(f"[engine] strategy auto-picked: {m.name}", flush=True)
+                    return mod.Strategy()
+            except Exception:
+                continue
+    except Exception as e:
+        last_err = last_err or e
+
+    raise RuntimeError(
+        f"No usable Strategy object found for '{name}'. last_err={last_err}"
+    )
+
+
+def handle_manual_buy(symbol: str, usd: float) -> None:
+    print(f"[engine] handle_manual_buy not wired: {symbol} usd={usd}", flush=True)
+
+
+def handle_manual_sell(symbol: str, qty: float) -> None:
+    print(f"[engine] handle_manual_sell not wired: {symbol} qty={qty}", flush=True)
+
+
 def main() -> int:
     stop_evt = threading.Event()
 
-    def _handle_signal(signum, frame):
+    def _handle_signal(signum, _frame):
         print(f"[engine] signal={signum} received; exiting", flush=True)
         stop_evt.set()
-        raise SystemExit(0)
+        return 0
 
-    signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
-
-    ks = kill_switch_path()
-    if os.path.exists(ks):
-        print(f"[engine] kill switch ON at startup ({ks}); exiting cleanly", flush=True)
-        return 2
+    signal.signal(signal.SIGTERM, _handle_signal)
 
     threading.Thread(target=_heartbeat, args=(stop_evt,), daemon=True).start()
     threading.Thread(target=_watch_kill_switch, args=(stop_evt,), daemon=True).start()
@@ -60,9 +414,10 @@ def main() -> int:
     try:
         print("[engine] starting", flush=True)
         settings = load_settings()
-        print("[engine] settings loaded; entering run_loop()
+        cfg = normalize_cfg(settings)
+        print("[engine] settings loaded; entering run()", flush=True)
 
-        # --- GUI intents (BUY/SELL) ---
+        # intents
         try:
             intents = pop_new_intents()
             for it in intents:
@@ -82,10 +437,12 @@ def main() -> int:
                         handle_manual_sell(symbol=sym, qty=qty)
         except Exception as e:
             print(f"[engine] intent processing error: {e}", flush=True)
-", flush=True)
-        run_loop(settings)
-        print("[engine] run_loop() returned; exiting cleanly", flush=True)
-        return 0
+
+        strategy = resolve_strategy(cfg)
+        rc = run(cfg, strategy)
+        print(f"[engine] run() returned rc={rc}", flush=True)
+        return int(rc or 0)
+
     except SystemExit as e:
         code = int(getattr(e, "code", 0) or 0)
         print(f"[engine] SystemExit({code})", flush=True)
@@ -94,178 +451,7 @@ def main() -> int:
         print("[engine] fatal:", flush=True)
         traceback.print_exc()
         return 1
-    finally:
-        stop_evt.set()
+
 
 if __name__ == "__main__":
-    try:
-        sys.exit(main())
-    except Exception:
-        traceback.print_exc()
-        sys.exit(1)
-
-
-def handle_manual_buy(symbol: str, usd: float) -> None:
-    # TODO: wire into your existing order/position logic
-    print(f"[engine] handle_manual_buy not wired: {symbol} usd={usd}", flush=True)
-
-
-def handle_manual_sell(symbol: str, qty: float) -> None:
-    # TODO: wire into your existing order/position logic
-    print(f"[engine] handle_manual_sell not wired: {symbol} qty={qty}", flush=True)
-
-# =========================
-# Manual trade execution (paper mode)
-# =========================
-from __future__ import annotations
-
-import os
-import json
-import time
-from typing import Any
-
-_PAPER_BAL = os.path.expanduser("~/projects/AlgonovaX/data/balances.json")
-_PAPER_TRD = os.path.expanduser("~/projects/AlgonovaX/data/trades.json")
-_PAPER_POS = os.path.expanduser("~/projects/AlgonovaX/data/positions.json")
-
-def _jread(path: str, default: Any):
-    try:
-        if not os.path.exists(path):
-            return default
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return default
-
-def _jwrite(path: str, obj: Any):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(obj, f, indent=2, sort_keys=True)
-    os.replace(tmp, path)
-
-def _now() -> int:
-    return int(time.time())
-
-def _split_symbol(symbol: str) -> tuple[str, str]:
-    if "/" not in symbol:
-        raise ValueError("symbol must look like BTC/USD")
-    base, quote = symbol.split("/", 1)
-    return base.strip().upper(), quote.strip().upper()
-
-def _fetch_price_ccxt(symbol: str) -> float:
-    try:
-        import ccxt  # type: ignore
-        ex = ccxt.kraken({"enableRateLimit": True})
-        t = ex.fetch_ticker(symbol)
-        px = float(t.get("last") or t.get("close") or 0.0)
-        if px <= 0:
-            raise RuntimeError("no price")
-        return px
-    except Exception as e:
-        raise RuntimeError(f"price_fetch_failed: {e}")
-
-def _ensure_wallet(bal: dict) -> dict:
-    # default paper wallet: $10,000 if empty
-    if not bal:
-        bal = {"USD": 10000.0}
-    return bal
-
-def handle_manual_buy(symbol: str, usd: float) -> None:
-    try:
-        if os.getenv("LIVE_TRADING_ENABLED", "0") == "1":
-            print("[engine] REFUSE manual BUY: live trading enabled", flush=True)
-            return
-
-        base, quote = _split_symbol(symbol)
-        if quote != "USD":
-            print(f"[engine] REFUSE manual BUY: quote must be USD (got {quote})", flush=True)
-            return
-
-        px = _fetch_price_ccxt(symbol)
-        qty = float(usd) / px
-
-        bal = _ensure_wallet(_jread(_PAPER_BAL, {}))
-        bal.setdefault("USD", 0.0)
-        bal.setdefault(base, 0.0)
-
-        if float(bal["USD"]) < float(usd):
-            print(f"[engine] REFUSE manual BUY: insufficient USD balance={bal['USD']}", flush=True)
-            return
-
-        bal["USD"] = float(bal["USD"]) - float(usd)
-        bal[base] = float(bal[base]) + float(qty)
-        _jwrite(_PAPER_BAL, bal)
-
-        tr = _jread(_PAPER_TRD, [])
-        tr.append({"ts": _now(), "side": "BUY", "symbol": symbol, "price": px, "qty": qty, "usd": float(usd), "mode": "paper"})
-        tr = tr[-2000:]
-        _jwrite(_PAPER_TRD, tr)
-
-        pos = _jread(_PAPER_POS, [])
-        # simple position model: aggregate by base
-        found = False
-        for p in pos:
-            if str(p.get("asset")).upper() == base:
-                p["qty"] = float(p.get("qty", 0.0)) + float(qty)
-                found = True
-                break
-        if not found:
-            pos.append({"asset": base, "qty": float(qty)})
-        _jwrite(_PAPER_POS, pos)
-
-        print(f"[engine] paper BUY filled {symbol} qty={qty:.8f} px={px:.2f} usd={usd}", flush=True)
-    except Exception as e:
-        print(f"[engine] manual BUY error: {e}", flush=True)
-
-def handle_manual_sell(symbol: str, qty: float) -> None:
-    try:
-        if os.getenv("LIVE_TRADING_ENABLED", "0") == "1":
-            print("[engine] REFUSE manual SELL: live trading enabled", flush=True)
-            return
-
-        base, quote = _split_symbol(symbol)
-        if quote != "USD":
-            print(f"[engine] REFUSE manual SELL: quote must be USD (got {quote})", flush=True)
-            return
-
-        px = _fetch_price_ccxt(symbol)
-        usd = float(qty) * px
-
-        bal = _ensure_wallet(_jread(_PAPER_BAL, {}))
-        bal.setdefault("USD", 0.0)
-        bal.setdefault(base, 0.0)
-
-        if float(bal[base]) < float(qty):
-            print(f"[engine] REFUSE manual SELL: insufficient {base} balance={bal[base]}", flush=True)
-            return
-
-        bal[base] = float(bal[base]) - float(qty)
-        bal["USD"] = float(bal["USD"]) + float(usd)
-        _jwrite(_PAPER_BAL, bal)
-
-        tr = _jread(_PAPER_TRD, [])
-        tr.append({"ts": _now(), "side": "SELL", "symbol": symbol, "price": px, "qty": float(qty), "usd": usd, "mode": "paper"})
-        tr = tr[-2000:]
-        _jwrite(_PAPER_TRD, tr)
-
-        pos = _jread(_PAPER_POS, [])
-        for p in list(pos):
-            if str(p.get("asset")).upper() == base:
-                p["qty"] = float(p.get("qty", 0.0)) - float(qty)
-                if p["qty"] <= 0:
-                    pos.remove(p)
-                break
-        _jwrite(_PAPER_POS, pos)
-
-        print(f"[engine] paper SELL filled {symbol} qty={qty:.8f} px={px:.2f} usd={usd:.2f}", flush=True)
-    except Exception as e:
-        print(f"[engine] manual SELL error: {e}", flush=True)
-
-# ===== HOTFIX: repair broken log line =====
-def _safe_print(msg: str):
-    try:
-        print(msg, flush=True)
-    except Exception:
-        pass
-# ========================================
+    raise SystemExit(main())

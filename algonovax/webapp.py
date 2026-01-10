@@ -11,13 +11,16 @@ app = FastAPI(title="AlgoNovaX")
 # --- Mount GUI router ---
 try:
     from ui.gui import router as gui_router
+
     app.include_router(gui_router)
 except Exception as e:
     raise RuntimeError(f"Failed to mount GUI router: {e}") from e
 
+
 @app.get("/")
 def _root():
     return RedirectResponse(url="/ui", status_code=307)
+
 
 # --- favicon hardening (never 500) ---
 @app.get("/favicon.ico", include_in_schema=False)
@@ -30,10 +33,12 @@ def favicon():
     except Exception:
         return Response(status_code=204)
 
+
 # --- backtest last/output endpoints ---
-_BASE = os.path.expanduser("~/projects/AlgonovaX")
+_BASE = os.environ.get("ALGONOVAX_ROOT") or os.path.expanduser("~/AlgonovaX")
 _BACKTEST_LAST = os.path.join(_BASE, "data", "backtest_last.json")
 _BACKTEST_OUT = os.path.join(_BASE, "logs", "backtests", "backtest.out")
+
 
 @app.get("/api/backtest/last")
 def api_backtest_last():
@@ -45,7 +50,10 @@ def api_backtest_last():
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"failed reading backtest_last.json: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"failed reading backtest_last.json: {e}"
+        )
+
 
 @app.get("/api/backtest/output")
 def api_backtest_output(tail: int = 200):
@@ -57,4 +65,6 @@ def api_backtest_output(tail: int = 200):
             lines = f.readlines()[-tail:]
         return Response(content="".join(lines), media_type="text/plain")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"failed reading backtest output: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"failed reading backtest output: {e}"
+        )

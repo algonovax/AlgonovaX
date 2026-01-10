@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+
+TERMUX = bool(os.environ.get('TERMUX_VERSION') or 'com.termux' in os.environ.get('PREFIX',''))
+import shutil
 import json
 import subprocess
 import secrets
@@ -18,7 +21,7 @@ ENGINE_SERVICE = os.getenv("ALGONOVAX_ENGINE_SERVICE", "algonovax-engine.service
 KILLSWITCH_SERVICE = os.getenv("ALGONOVAX_KILLSWITCH_SERVICE", "algonovax-killswitch.timer")
 BACKTEST_SERVICE = os.getenv("ALGONOVAX_BACKTEST_SERVICE", "algonovax-backtest.service")
 
-BASE = os.path.expanduser("~/projects/AlgonovaX")
+BASE = os.environ.get("ALGONOVAX_ROOT") or os.path.expanduser("~/AlgonovaX")
 LOG_PATH = f"{BASE}/logs/engine.log"
 KS_HARD = f"{BASE}/data/KILL_SWITCH"
 KS_SOFT = f"{BASE}/data/KILL_SWITCH_SOFT"
@@ -90,7 +93,11 @@ def _run(cmd: list[str]) -> str:
 
 
 def _systemctl(*args: str) -> str:
-    return _run(["systemctl", "--user", *args])
+    # Termux/Android has no systemd/systemctl.
+    if TERMUX or shutil.which('systemctl') is None:
+        return '(termux) skip systemctl'
+    return _run(['systemctl', '--user', *args])
+
 
 
 def _is_active(unit: str) -> str:
@@ -272,7 +279,7 @@ def api_status(request: Request):
         "engine_lock_exists": os.path.exists(LOCK_PATH),
         "log_path": LOG_PATH,
         "auth_enabled": _auth_enabled(),
-        "override_file": OVR_FILE,
+        "override_file": (OVERRIDE_FILE if (not TERMUX and shutil.which("systemctl")) else None),
         "intents_file": INTENTS_PATH,
     }
 

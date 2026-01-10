@@ -8,9 +8,13 @@ from .risk import RiskLimits, kill_switch_triggered, validate_limits
 
 log = logging.getLogger("algonovax.engine")
 
+
 def run_once(settings: Settings) -> None:
     # Placeholder: wire your strategy/exchange here.
-    log.info(f"tick exchange={settings.exchange} symbol={settings.symbol} timeframe={settings.timeframe}")
+    log.info(
+        f"tick exchange={settings.exchange} symbol={settings.symbol} timeframe={settings.timeframe}"
+    )
+
 
 def run_loop(settings: Settings) -> None:
     limits = RiskLimits(

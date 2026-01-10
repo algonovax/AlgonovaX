@@ -48,9 +48,17 @@ def generate_signal(
         r = float(rsi.iloc[-1])
 
         if es > el and r < rsi_overbought:
-            return Signal(Side.BUY, 0.55, f"ema_rsi_buy es>={ema_short} el>={ema_long} rsi={r:.1f}")
+            return Signal(
+                Side.BUY,
+                0.55,
+                f"ema_rsi_buy es>={ema_short} el>={ema_long} rsi={r:.1f}",
+            )
         if es < el and r > rsi_oversold:
-            return Signal(Side.SELL, 0.55, f"ema_rsi_sell es<={ema_short} el<={ema_long} rsi={r:.1f}")
+            return Signal(
+                Side.SELL,
+                0.55,
+                f"ema_rsi_sell es<={ema_short} el<={ema_long} rsi={r:.1f}",
+            )
 
         return Signal(Side.HOLD, 0.0, "no_setup")
 

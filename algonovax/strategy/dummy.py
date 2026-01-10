@@ -1,6 +1,7 @@
 from __future__ import annotations
 from .base import Strategy, Intent
 
+
 class DummyHold(Strategy):
     name = "dummy_hold"
 

@@ -4,7 +4,7 @@ import sys
 import subprocess
 
 FILES = {
-"algonovax/strategy/ema_cross_mvp.py": """from __future__ import annotations
+    "algonovax/strategy/ema_cross_mvp.py": """from __future__ import annotations
 from algonovax.strategy.base import Strategy, Intent
 
 def _ema(prev: float | None, x: float, n: int) -> float:
@@ -47,12 +47,14 @@ class EMACrossMVP(Strategy):
 """,
 }
 
+
 def write_all() -> None:
     for p, content in FILES.items():
         path = Path(p)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
         print(f"WROTE {p}")
+
 
 def compile_all() -> None:
     # compile whole package to catch truncation/syntax errors
@@ -62,9 +64,11 @@ def compile_all() -> None:
         raise SystemExit(r.returncode)
     print("COMPILE OK")
 
+
 def main() -> None:
     write_all()
     compile_all()
+
 
 if __name__ == "__main__":
     main()

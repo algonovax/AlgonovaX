@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
 
 def call_strategy_generate_signal(generate_signal, df, **kwargs) -> str:
     """

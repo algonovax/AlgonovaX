@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$HOME/projects/AlgonovaX"
+cd "${ALGONOVAX_ROOT:-$HOME/AlgonovaX}"
 
 dump () {
   local f="$1"

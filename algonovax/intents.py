@@ -5,8 +5,16 @@ import os
 import time
 from typing import Any
 
-INTENTS_PATH = os.path.expanduser("~/projects/AlgonovaX/data/intents.json")
-STATE_PATH = os.path.expanduser("~/projects/AlgonovaX/data/intents_state.json")
+INTENTS_PATH = os.path.join(
+    os.environ.get("ALGONOVAX_ROOT") or os.path.expanduser("~/AlgonovaX"),
+    "data",
+    "intents.json",
+)
+STATE_PATH = os.path.join(
+    os.environ.get("ALGONOVAX_ROOT") or os.path.expanduser("~/AlgonovaX"),
+    "data",
+    "intents_state.json",
+)
 
 
 def _read_json(path: str) -> Any:
@@ -53,6 +61,8 @@ def pop_new_intents(max_items: int = 20) -> list[dict]:
         newest = out[-1]
         new_ts = int(newest.get("ts", _now()))
         new_idx = intents.index(newest)
-        _write_json(STATE_PATH, {"last_ts": new_ts, "last_idx": new_idx, "updated": _now()})
+        _write_json(
+            STATE_PATH, {"last_ts": new_ts, "last_idx": new_idx, "updated": _now()}
+        )
 
     return out

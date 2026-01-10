@@ -18,17 +18,21 @@ REPORT_PATH = ROOT / "data" / "backtest_report.json"
 
 MS_PER_DAY = 24 * 60 * 60 * 1000
 
+
 def senv(k: str, d: str) -> str:
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else v.strip()
+
 
 def ienv(k: str, d: int) -> int:
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else int(v)
 
+
 def fenv(k: str, d: float) -> float:
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else float(v)
+
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists() or path.stat().st_size == 0:
@@ -44,10 +48,12 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
             continue
     return out
 
+
 def append_jsonl(path: Path, rec: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
 
 def candle_ts_range(candle_file: Path) -> tuple[int, int, int]:
     data = json.loads(candle_file.read_text(encoding="utf-8"))
@@ -58,6 +64,7 @@ def candle_ts_range(candle_file: Path) -> tuple[int, int, int]:
     ts0 = int(data[0][0])
     ts1 = int(data[-1][0])
     return ts0, ts1, len(data)
+
 
 def run_backtest(env: dict[str, str]) -> dict[str, Any]:
     try:
@@ -93,6 +100,7 @@ def run_backtest(env: dict[str, str]) -> dict[str, Any]:
         "report": report,
     }
 
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--top", type=int, default=8)
@@ -124,9 +132,15 @@ def main() -> int:
     start_ms = end_ms - (test_days * MS_PER_DAY)
 
     rows = read_jsonl(CAND_PATH)
-    train = [r for r in rows if r.get("phase") == "train" and r.get("candle_file") == candle_file_s]
+    train = [
+        r
+        for r in rows
+        if r.get("phase") == "train" and r.get("candle_file") == candle_file_s
+    ]
     if not train:
-        print("No train candidates found for this candle file. (candidates.jsonl empty or mismatch)")
+        print(
+            "No train candidates found for this candle file. (candidates.jsonl empty or mismatch)"
+        )
         return 0
 
     def train_score(r: dict[str, Any]) -> float:
@@ -217,6 +231,7 @@ def main() -> int:
     if ok_count == 0:
         print("No candidates passed eval gates.")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

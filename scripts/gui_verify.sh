@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd ~/projects/AlgonovaX
+cd ${ALGONOVAX_ROOT:-$HOME/AlgonovaX}
 source .venv/bin/activate
 
 python -m py_compile algonovax/gui/app.py

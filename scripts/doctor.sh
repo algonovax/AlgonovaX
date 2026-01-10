@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="$HOME/projects/AlgonovaX"
+REPO="${ALGONOVAX_ROOT:-$HOME/AlgonovaX}"
 cd "$REPO"
 
 echo "== time =="

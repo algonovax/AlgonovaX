@@ -7,6 +7,7 @@ from typing import Any, Callable, Literal
 
 Signal = Literal["BUY", "SELL", "HOLD"]
 
+
 @dataclass(frozen=True)
 class Candle:
     ts: int
@@ -15,6 +16,7 @@ class Candle:
     l: float
     c: float
     v: float
+
 
 def load_kraken_ohlcv_json(path: Path) -> list[Candle]:
     try:
@@ -28,10 +30,16 @@ def load_kraken_ohlcv_json(path: Path) -> list[Candle]:
                 ts, o, h, l, c, v = row[:6]
             elif isinstance(row, dict):
                 ts = row.get("ts") or row.get("timestamp") or row.get("time")
-                o = row.get("open"); h = row.get("high"); l = row.get("low"); c = row.get("close"); v = row.get("volume")
+                o = row.get("open")
+                h = row.get("high")
+                l = row.get("low")
+                c = row.get("close")
+                v = row.get("volume")
             else:
                 continue
-            out.append(Candle(int(ts), float(o), float(h), float(l), float(c), float(v)))
+            out.append(
+                Candle(int(ts), float(o), float(h), float(l), float(c), float(v))
+            )
 
         if not out:
             raise ValueError("No candles loaded")
@@ -40,6 +48,7 @@ def load_kraken_ohlcv_json(path: Path) -> list[Candle]:
         return out
     except Exception as e:
         raise RuntimeError(f"Failed to load candles from {path}: {e}") from e
+
 
 @dataclass
 class BacktestResult:
@@ -52,6 +61,7 @@ class BacktestResult:
     losses: int
     net_pnl_quote: float
     max_drawdown_quote: float
+
 
 def to_jsonable(res: BacktestResult) -> dict[str, Any]:
     return {
@@ -66,6 +76,7 @@ def to_jsonable(res: BacktestResult) -> dict[str, Any]:
         "max_drawdown_quote": res.max_drawdown_quote,
     }
 
+
 @dataclass
 class Trade:
     entry_ts: int
@@ -77,8 +88,10 @@ class Trade:
     net_pnl_quote: float
     reason: str
 
+
 StrategyFn = Callable[[list[float], list[float], list[float]], Signal]
 ATRFn = Callable[[list[float], list[float], list[float]], float]
+
 
 def run_backtest_atr_exits(
     candles: list[Candle],
@@ -86,8 +99,8 @@ def run_backtest_atr_exits(
     timeframe: str,
     strategy: StrategyFn,
     atr_value: ATRFn,
-    fee_rate: float = 0.002,       # per side
-    slippage_rate: float = 0.0005, # per side
+    fee_rate: float = 0.002,  # per side
+    slippage_rate: float = 0.0005,  # per side
     stake_quote: float = 100.0,
     stop_atr_mult: float = 2.0,
     tp_atr_mult: float = 3.0,
@@ -112,7 +125,9 @@ def run_backtest_atr_exits(
     ledger: list[Trade] = []
 
     for c in candles:
-        highs.append(c.h); lows.append(c.l); closes.append(c.c)
+        highs.append(c.h)
+        lows.append(c.l)
+        closes.append(c.c)
 
         if cooldown > 0:
             cooldown -= 1
@@ -148,16 +163,18 @@ def run_backtest_atr_exits(
                 pnl += gross - (stake_quote * fee_rate)
                 net = gross - fee_total
 
-                ledger.append(Trade(
-                    entry_ts=entry_ts,
-                    exit_ts=c.ts,
-                    entry_price=entry_price,
-                    exit_price=exit_price,
-                    gross_pnl_quote=round(gross, 6),
-                    fee_quote=round(fee_total, 6),
-                    net_pnl_quote=round(net, 6),
-                    reason=exit_reason,
-                ))
+                ledger.append(
+                    Trade(
+                        entry_ts=entry_ts,
+                        exit_ts=c.ts,
+                        entry_price=entry_price,
+                        exit_price=exit_price,
+                        gross_pnl_quote=round(gross, 6),
+                        fee_quote=round(fee_total, 6),
+                        net_pnl_quote=round(net, 6),
+                        reason=exit_reason,
+                    )
+                )
 
                 trades += 1
                 if net >= 0:

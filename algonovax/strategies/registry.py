@@ -17,7 +17,9 @@ def register(name: str, fn: StrategyFn) -> None:
 
 def get(name: str) -> StrategyFn:
     if name not in _REGISTRY:
-        raise KeyError(f"Unknown strategy: {name}. Available: {sorted(_REGISTRY.keys())}")
+        raise KeyError(
+            f"Unknown strategy: {name}. Available: {sorted(_REGISTRY.keys())}"
+        )
     return _REGISTRY[name]
 
 

@@ -2,16 +2,11 @@ from __future__ import annotations
 
 import os
 import traceback
-from dataclasses import dataclass
-from enum import Enum
-from typing import Optional
 
 import pandas as pd
 
 from .indicators import sma
 from .types import Signal, Side
-
-
 
 
 def generate_signal(df: pd.DataFrame, fast: int = 20, slow: int = 50) -> Signal:
@@ -30,7 +25,12 @@ def generate_signal(df: pd.DataFrame, fast: int = 20, slow: int = 50) -> Signal:
         s = sma(close, slow)
 
         # need last two non-na points
-        if pd.isna(f.iloc[-1]) or pd.isna(s.iloc[-1]) or pd.isna(f.iloc[-2]) or pd.isna(s.iloc[-2]):
+        if (
+            pd.isna(f.iloc[-1])
+            or pd.isna(s.iloc[-1])
+            or pd.isna(f.iloc[-2])
+            or pd.isna(s.iloc[-2])
+        ):
             return Signal(Side.HOLD, 0.0, "warmup")
 
         f0, f1 = float(f.iloc[-2]), float(f.iloc[-1])

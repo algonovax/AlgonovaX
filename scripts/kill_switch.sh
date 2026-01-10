@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-KS="${KILL_SWITCH_PATH:-$HOME/projects/AlgonovaX/data/KILL_SWITCH}"
+KS="${KILL_SWITCH_PATH:-${ALGONOVAX_ROOT:-$HOME/AlgonovaX}/data/KILL_SWITCH}"
 mkdir -p "$(dirname "$KS")"
 case "${1:-}" in
   on)

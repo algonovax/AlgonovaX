@@ -5,6 +5,7 @@ import yaml
 from algonovax.engine.engine import run
 from algonovax.strategy.ema_cross_mvp import EMACrossMVP
 
+
 def main() -> int:
     try:
         with open("config/config.yaml", "r", encoding="utf-8") as f:
@@ -20,6 +21,7 @@ def main() -> int:
     except Exception as e:
         print(f"FATAL: {e}", file=sys.stderr)
         return 1
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

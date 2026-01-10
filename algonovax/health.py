@@ -5,6 +5,7 @@ from typing import Any
 
 from .config import Settings
 
+
 def health_payload(settings: Settings) -> dict[str, Any]:
     # Never include secrets
     data = asdict(settings)

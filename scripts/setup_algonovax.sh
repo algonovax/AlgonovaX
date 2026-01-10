@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-BASE_DIR="$HOME/projects/AlgonovaX"
+BASE_DIR="${ALGONOVAX_ROOT:-$HOME/AlgonovaX}"
 echo "[INFO] Setting up AlgonovaX in $BASE_DIR"
 
 # Create base directories
