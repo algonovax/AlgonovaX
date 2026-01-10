@@ -16,14 +16,7 @@ jobs:
           python-version-file: ".python-version"
           cache: "pip"
 
-      - name: Show versions
-        shell: bash
-        run: |
-          set -euo pipefail
-          python --version
-          python -m pip --version
-
-      - name: Install package + test deps
+      - name: Install deps
         shell: bash
         run: |
           set -euo pipefail
