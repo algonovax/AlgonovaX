@@ -7,11 +7,7 @@ name = "algonovax"
 version = "0.1.0"
 description = "AlgoNovaX trading engine + API"
 requires-python = ">=3.11"
-dependencies = [
-  "fastapi>=0.116.0",
-  "uvicorn[standard]>=0.35.0",
-  "python-dotenv>=1.1.0",
-]
+dependencies = []
 readme = "README.md"
 
 [project.scripts]
@@ -23,3 +19,24 @@ include-package-data = false
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["algonovax*"]
+
+[project.optional-dependencies]
+api = ["fastapi>=0.116.0", "uvicorn[standard]>=0.35.0", "python-dotenv>=1.1.0"]
+
+[tool.ruff]
+exclude = [
+  ".git",
+  ".venv",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".patch_bak",
+  "audit",
+  "data",
+  "logs",
+  "legacy",
+]
+
+[tool.ruff.lint]
+# keep defaults; we just want signal first
+ignore = []
+

@@ -48,34 +48,52 @@ def main():
     below = int((r < rsi_buy).sum())
 
     # your buy gates
-    trend_rising = (e_trend >= e_trend.shift(3))
+    trend_rising = e_trend >= e_trend.shift(3)
     long_regime = (close > e_trend) | (trend_rising & (close > e_trend * 0.998))
 
     rsi_rebound = (r.shift(1) < rsi_buy) & (r > r.shift(1))
-    fast_ok = (close >= e_fast) | ((close.shift(1) < e_fast.shift(1)) & (close > e_fast))
+    fast_ok = (close >= e_fast) | (
+        (close.shift(1) < e_fast.shift(1)) & (close > e_fast)
+    )
 
-    combos = pd.DataFrame({
-        "long_regime": long_regime.astype(int),
-        "rsi_rebound": rsi_rebound.astype(int),
-        "fast_ok": fast_ok.astype(int),
-    })
+    combos = pd.DataFrame(
+        {
+            "long_regime": long_regime.astype(int),
+            "rsi_rebound": rsi_rebound.astype(int),
+            "fast_ok": fast_ok.astype(int),
+        }
+    )
 
     print("rows_after_warmup", len(df))
     print("rsi_min", rmin)
     print("rsi_max", rmax)
     print("rsi_below_buy_count", below)
 
-    print("gate_counts",
-          "long_regime", int(combos["long_regime"].sum()),
-          "rsi_rebound", int(combos["rsi_rebound"].sum()),
-          "fast_ok", int(combos["fast_ok"].sum()),
+    print(
+        "gate_counts",
+        "long_regime",
+        int(combos["long_regime"].sum()),
+        "rsi_rebound",
+        int(combos["rsi_rebound"].sum()),
+        "fast_ok",
+        int(combos["fast_ok"].sum()),
     )
 
-    all3 = int(((combos["long_regime"] == 1) & (combos["rsi_rebound"] == 1) & (combos["fast_ok"] == 1)).sum())
+    all3 = int(
+        (
+            (combos["long_regime"] == 1)
+            & (combos["rsi_rebound"] == 1)
+            & (combos["fast_ok"] == 1)
+        ).sum()
+    )
     print("all_3_gates_true", all3)
 
     # show closest misses: long+fast but RSI rebound missing
-    miss = combos[(combos["long_regime"] == 1) & (combos["fast_ok"] == 1) & (combos["rsi_rebound"] == 0)]
+    miss = combos[
+        (combos["long_regime"] == 1)
+        & (combos["fast_ok"] == 1)
+        & (combos["rsi_rebound"] == 0)
+    ]
     print("miss_long_fast_only", len(miss))
 
 

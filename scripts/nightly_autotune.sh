@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$HOME/projects/AlgonovaX"
+ROOT="${ALGONOVAX_ROOT:-$HOME/AlgonovaX}"
 cd "$ROOT" || { echo "ERROR: missing $ROOT"; exit 1; }
 
 if [ -f ".venv/bin/activate" ]; then

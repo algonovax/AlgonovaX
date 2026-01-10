@@ -10,23 +10,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
           python-version-file: ".python-version"
           cache: "pip"
 
-      - run: python -V
-
-      - name: Install deps
+      - name: Show versions
+        shell: bash
         run: |
+          set -euo pipefail
+          python --version
+          python -m pip --version
+
+      - name: Install package + test deps
+        shell: bash
+        run: |
+          set -euo pipefail
           python -m pip install -U pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          python -m pip install -e ".[test]" || python -m pip install -e .
+          python -m pip install -U pytest
 
-      - name: Run tests (if present)
+      - name: Run tests
+        shell: bash
         run: |
-          if [ -d tests ] || ls -1 *test*.py 2>/dev/null | grep -q .; then
-            python -m pip install -U pytest
-            pytest -q
-          else
-            echo "No tests detected; skipping."
-          fi
+          set -euo pipefail
+          pytest -q

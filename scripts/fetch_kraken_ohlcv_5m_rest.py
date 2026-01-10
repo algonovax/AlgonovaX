@@ -5,16 +5,18 @@ import json
 import time
 import os
 from pathlib import Path
-from typing import List, Dict, Any, Tuple
+from typing import List, Any, Tuple
 
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "data" / "candles"
 
+
 def senv(name: str, default: str) -> str:
     v = os.environ.get(name)
     return default if v is None or v.strip() == "" else v.strip()
+
 
 def ienv(name: str, default: int) -> int:
     v = os.environ.get(name)
@@ -22,8 +24,10 @@ def ienv(name: str, default: int) -> int:
         return default
     return int(v)
 
+
 def symbol_to_fs(symbol: str) -> str:
     return symbol.replace("/", "_").replace("-", "_").upper()
+
 
 def kraken_pair(symbol: str) -> str:
     # Minimal mapping for your use-case
@@ -31,6 +35,7 @@ def kraken_pair(symbol: str) -> str:
     if sym == "BTCUSD":
         return "XBTUSD"
     return sym
+
 
 def fetch_page(pair: str, interval: int, since_sec: int) -> Tuple[List[List[Any]], int]:
     url = "https://api.kraken.com/0/public/OHLC"
@@ -51,6 +56,7 @@ def fetch_page(pair: str, interval: int, since_sec: int) -> Tuple[List[List[Any]
     if rows is None:
         return [], last
     return rows, last
+
 
 def main() -> int:
     symbol = senv("SYMBOL", "BTC/USD")
@@ -82,14 +88,16 @@ def main() -> int:
             if ts_sec in seen:
                 continue
             seen.add(ts_sec)
-            all_rows.append([
-                ts_sec * 1000,
-                float(r[1]),
-                float(r[2]),
-                float(r[3]),
-                float(r[4]),
-                float(r[6]),  # volume
-            ])
+            all_rows.append(
+                [
+                    ts_sec * 1000,
+                    float(r[1]),
+                    float(r[2]),
+                    float(r[3]),
+                    float(r[4]),
+                    float(r[6]),  # volume
+                ]
+            )
             advanced = True
 
         if not advanced:
@@ -109,7 +117,9 @@ def main() -> int:
     all_rows.sort(key=lambda x: x[0])
 
     if len(all_rows) < 1000:
-        print(f"ERROR: only {len(all_rows)} candles fetched; likely connectivity or API limitation")
+        print(
+            f"ERROR: only {len(all_rows)} candles fetched; likely connectivity or API limitation"
+        )
         return 1
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -121,6 +131,7 @@ def main() -> int:
     print(f"WROTE {out}")
     print(f"candles={len(all_rows)} start={start_ts} end={end_ts}")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

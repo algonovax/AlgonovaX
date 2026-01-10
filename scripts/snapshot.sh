@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$HOME/projects/AlgonovaX"
+cd "${ALGONOVAX_ROOT:-$HOME/AlgonovaX}"
 
 echo "== git =="
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Not a git repo"; exit 1; }

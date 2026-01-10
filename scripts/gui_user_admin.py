@@ -1,7 +1,6 @@
 from __future__ import annotations
 import json
 import os
-import secrets
 import sys
 from pathlib import Path
 
@@ -14,14 +13,17 @@ CFG_DIR.mkdir(parents=True, exist_ok=True)
 
 ph = PasswordHasher()
 
+
 def load() -> dict:
     if USERS.exists():
         return json.loads(USERS.read_text(encoding="utf-8"))
     return {"users": {}}
 
+
 def save(db: dict) -> None:
     USERS.write_text(json.dumps(db, indent=2, sort_keys=True), encoding="utf-8")
     os.chmod(USERS, 0o600)
+
 
 def add_user(username: str, password: str, role: str, totp: bool) -> None:
     db = load()
@@ -35,9 +37,12 @@ def add_user(username: str, password: str, role: str, totp: bool) -> None:
     db["users"][username] = rec
     save(db)
     if totp:
-        uri = pyotp.totp.TOTP(rec["totp_secret"]).provisioning_uri(name=username, issuer_name="AlgoNovaX")
+        uri = pyotp.totp.TOTP(rec["totp_secret"]).provisioning_uri(
+            name=username, issuer_name="AlgoNovaX"
+        )
         print("TOTP_URI:", uri)
         print("TOTP_SECRET:", rec["totp_secret"])
+
 
 def set_pw(username: str, password: str) -> None:
     db = load()
@@ -45,6 +50,7 @@ def set_pw(username: str, password: str) -> None:
         raise SystemExit(f"no such user: {username}")
     db["users"][username]["pass_hash"] = ph.hash(password)
     save(db)
+
 
 def main() -> int:
     if len(sys.argv) < 2:
@@ -68,6 +74,7 @@ def main() -> int:
         print("OK")
         return 0
     raise SystemExit(f"unknown cmd: {cmd}")
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

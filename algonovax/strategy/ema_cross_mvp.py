@@ -1,9 +1,11 @@
 from __future__ import annotations
 from algonovax.strategy.base import Strategy, Intent
 
+
 def _ema(prev: float | None, x: float, n: int) -> float:
     k = 2.0 / (n + 1.0)
     return x if prev is None else (x * k + prev * (1.0 - k))
+
 
 class EMACrossMVP(Strategy):
     name = "ema_cross_mvp"
@@ -26,13 +28,22 @@ class EMACrossMVP(Strategy):
         if self.prev_fast is None or self.prev_slow is None:
             return Intent(action="hold", reason="warmup")
 
-        crossed_up = (self.prev_fast <= self.prev_slow) and (self.ema_fast > self.ema_slow)
-        crossed_dn = (self.prev_fast >= self.prev_slow) and (self.ema_fast < self.ema_slow)
+        crossed_up = (self.prev_fast <= self.prev_slow) and (
+            self.ema_fast > self.ema_slow
+        )
+        crossed_dn = (self.prev_fast >= self.prev_slow) and (
+            self.ema_fast < self.ema_slow
+        )
 
         pos_side = (state.get("position") or {}).get("side", "flat")
 
         if crossed_up and pos_side == "flat":
-            return Intent(action="enter", side="buy", reason="ema_cross_up", stake_quote=self.stake_quote)
+            return Intent(
+                action="enter",
+                side="buy",
+                reason="ema_cross_up",
+                stake_quote=self.stake_quote,
+            )
 
         if crossed_dn and pos_side == "long":
             return Intent(action="exit", side="sell", reason="ema_cross_down")

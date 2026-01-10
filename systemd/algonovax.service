@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/projects/AlgonovaX
+WorkingDirectory=%h/AlgonovaX
 Environment=ENV=prod
 Environment=HOST=127.0.0.1
 Environment=PORT=8001
@@ -14,16 +14,16 @@ Environment=PAPER_TRADING_ENABLED=1
 Environment=LIVE_TRADING_ENABLED=0
 Environment=SYMBOL=BTC/USD
 Environment=TIMEFRAME=1m
-Environment=KILL_SWITCH_PATH=%h/projects/AlgonovaX/data/KILL_SWITCH
+Environment=KILL_SWITCH_PATH=%h/AlgonovaX/data/KILL_SWITCH
 Environment=MAX_DAILY_LOSS_USD=50
 Environment=MAX_OPEN_POSITIONS=1
 
-ExecStart=%h/projects/AlgonovaX/.venv/bin/uvicorn algonovax.app:create_app --factory --host 127.0.0.1 --port 8001
+ExecStart=%h/AlgonovaX/.venv/bin/uvicorn algonovax.app:create_app --factory --host 127.0.0.1 --port 8001
 Restart=always
 RestartSec=3
 
-StandardOutput=append:%h/projects/AlgonovaX/logs/api.log
-StandardError=append:%h/projects/AlgonovaX/logs/api.log
+StandardOutput=append:%h/AlgonovaX/logs/api.log
+StandardError=append:%h/AlgonovaX/logs/api.log
 
 [Install]
 WantedBy=default.target

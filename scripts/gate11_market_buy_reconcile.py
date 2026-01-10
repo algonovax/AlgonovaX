@@ -4,9 +4,11 @@ import sys
 import time
 import ccxt
 
+
 def die(msg: str, code: int = 2) -> None:
     print(f"GATE11_FAIL: {msg}", file=sys.stderr)
     raise SystemExit(code)
+
 
 def mk_exchange():
     key = os.getenv("BINANCEUS_API_KEY")
@@ -15,9 +17,11 @@ def mk_exchange():
         die("Missing BINANCEUS_API_KEY/BINANCEUS_API_SECRET")
     return ccxt.binanceus({"apiKey": key, "secret": sec, "enableRateLimit": True})
 
+
 def get_free(bal, asset: str) -> float:
     free = bal.get("free") or {}
     return float(free.get(asset, 0) or 0)
+
 
 def main():
     mode = os.getenv("MODE", "live").lower()
@@ -62,7 +66,11 @@ def main():
         print("GATE11_OK: placing market buy", symbol, "quote_spend", stake_quote)
 
         # amount is ignored when quoteOrderQty is provided; provide 0 safely
-        order = ex.create_market_buy_order(symbol, 0, params) if params else ex.create_market_buy_order(symbol, stake_quote / 100000.0)
+        order = (
+            ex.create_market_buy_order(symbol, 0, params)
+            if params
+            else ex.create_market_buy_order(symbol, stake_quote / 100000.0)
+        )
         oid = order.get("id")
         print("GATE11_OK: created order_id", oid or "unknown")
 
@@ -90,6 +98,7 @@ def main():
 
     except ccxt.BaseError as e:
         die(f"{type(e).__name__}: {e}", 3)
+
 
 if __name__ == "__main__":
     main()

@@ -13,12 +13,14 @@ PAIR = "XBTUSD"
 INTERVAL_MIN = 5
 INTERVAL_MS = INTERVAL_MIN * 60_000
 
+
 def parse_trade(row) -> tuple[int, float, float]:
     # [price, volume, time, side, orderType, misc]
     price = float(row[0])
     vol = float(row[1])
     ts_ms = int(float(row[2]) * 1000.0)
     return ts_ms, price, vol
+
 
 def main() -> int:
     src = TRADES_DIR / f"kraken_{PAIR}_trades_last30d.json"
@@ -42,8 +44,10 @@ def main() -> int:
             candles[bucket] = [bucket, price, price, price, price, vol]  # ts,o,h,l,c,v
         else:
             # o unchanged
-            if price > c[2]: c[2] = price
-            if price < c[3]: c[3] = price
+            if price > c[2]:
+                c[2] = price
+            if price < c[3]:
+                c[3] = price
             c[4] = price
             c[5] += vol
 
@@ -58,6 +62,7 @@ def main() -> int:
     out.write_text(json.dumps(rows), encoding="utf-8")
     print(f"WROTE {out} candles={len(rows)}")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

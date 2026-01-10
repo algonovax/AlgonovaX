@@ -121,8 +121,18 @@ def main() -> None:
             if use_sl_tp:
                 # intrabar simulation (conservative: SL before TP if both hit)
                 if last_sl is not None and lo <= last_sl:
-                    pnl = (last_sl - float(entry_price or last_sl))
-                    print("EXIT_SL", i, "stop_loss_hit", "fill", last_sl, "entry", entry_price, "pnl", pnl)
+                    pnl = last_sl - float(entry_price or last_sl)
+                    print(
+                        "EXIT_SL",
+                        i,
+                        "stop_loss_hit",
+                        "fill",
+                        last_sl,
+                        "entry",
+                        entry_price,
+                        "pnl",
+                        pnl,
+                    )
                     trades += 1
                     losses += 1 if pnl <= 0 else 0
                     wins += 1 if pnl > 0 else 0
@@ -134,8 +144,18 @@ def main() -> None:
                     continue
 
                 if last_tp is not None and hi >= last_tp:
-                    pnl = (last_tp - float(entry_price or last_tp))
-                    print("EXIT_TP", i, "take_profit_hit", "fill", last_tp, "entry", entry_price, "pnl", pnl)
+                    pnl = last_tp - float(entry_price or last_tp)
+                    print(
+                        "EXIT_TP",
+                        i,
+                        "take_profit_hit",
+                        "fill",
+                        last_tp,
+                        "entry",
+                        entry_price,
+                        "pnl",
+                        pnl,
+                    )
                     trades += 1
                     wins += 1 if pnl >= 0 else 0
                     losses += 1 if pnl < 0 else 0
@@ -147,8 +167,18 @@ def main() -> None:
                     continue
 
             if sig.side == Side.SELL:
-                pnl = (close - float(entry_price or close))
-                print("EXIT_SELL", i, sig.reason, "close", close, "entry", entry_price, "pnl", pnl)
+                pnl = close - float(entry_price or close)
+                print(
+                    "EXIT_SELL",
+                    i,
+                    sig.reason,
+                    "close",
+                    close,
+                    "entry",
+                    entry_price,
+                    "pnl",
+                    pnl,
+                )
                 trades += 1
                 wins += 1 if pnl >= 0 else 0
                 losses += 1 if pnl < 0 else 0
@@ -168,16 +198,24 @@ def main() -> None:
             entry_index = i
             last_sl = float(sig.stop_loss) if sig.stop_loss is not None else None
             last_tp = float(sig.take_profit) if sig.take_profit is not None else None
-            print("BUY", i, sig.reason, "entry", entry_price, "sl", last_sl, "tp", last_tp)
+            print(
+                "BUY", i, sig.reason, "entry", entry_price, "sl", last_sl, "tp", last_tp
+            )
 
     print(
         "SUMMARY",
-        "rows", len(df),
-        "lookback", lookback,
-        "trades", trades,
-        "wins", wins,
-        "losses", losses,
-        "in_position_end", in_pos,
+        "rows",
+        len(df),
+        "lookback",
+        lookback,
+        "trades",
+        trades,
+        "wins",
+        wins,
+        "losses",
+        losses,
+        "in_position_end",
+        in_pos,
     )
 
 

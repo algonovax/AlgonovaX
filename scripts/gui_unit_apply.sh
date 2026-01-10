@@ -16,13 +16,13 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-WorkingDirectory=%h/projects/AlgonovaX
+WorkingDirectory=%h/AlgonovaX
 
-Environment=ALGONOVAX_PROJECT_DIR=%h/projects/AlgonovaX
+Environment=ALGONOVAX_PROJECT_DIR=%h/AlgonovaX
 Environment=ALGONOVAX_GUI_HOST=127.0.0.1
 Environment=ALGONOVAX_GUI_PORT=8790
 
-ExecStart=%h/projects/AlgonovaX/.venv/bin/python -m algonovax.gui.app
+ExecStart=%h/AlgonovaX/.venv/bin/python -m algonovax.gui.app
 Restart=on-failure
 RestartSec=2
 
@@ -35,7 +35,7 @@ UNITEOF
 
 cat > "$DROPIN_DIR/health.conf" <<'DROPEOF'
 [Service]
-ExecStartPost=%h/projects/AlgonovaX/scripts/healthcheck_gui.sh
+ExecStartPost=%h/AlgonovaX/scripts/healthcheck_gui.sh
 DROPEOF
 
 systemctl --user daemon-reload

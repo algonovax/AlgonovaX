@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BT = ROOT / "scripts" / "backtest_kraken_5m.py"
 REPORT = ROOT / "data" / "backtest_report.json"
 
+
 def main() -> int:
     candle = os.environ.get("CANDLE_FILE", "").strip()
     if not candle:
@@ -60,11 +61,11 @@ def main() -> int:
             pnl_per_trade = (pnl / trades) if trades else 0.0
 
             print(
-                f"{fee:.4f},{slip:.4f},{trades},"
-                f"{pnl:.6f},{pnl_per_trade:.6f},{dd:.6f}"
+                f"{fee:.4f},{slip:.4f},{trades},{pnl:.6f},{pnl_per_trade:.6f},{dd:.6f}"
             )
 
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

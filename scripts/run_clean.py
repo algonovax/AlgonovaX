@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 import yaml
 
+
 def main() -> int:
     try:
         Path("data/state.json").unlink(missing_ok=True)
@@ -13,7 +14,9 @@ def main() -> int:
             raise RuntimeError("config must be a mapping")
 
         cfg.setdefault("paper", {})
-        cfg["paper"]["starting_cash_quote"] = float(cfg["paper"].get("starting_cash_quote", 1000.0))
+        cfg["paper"]["starting_cash_quote"] = float(
+            cfg["paper"].get("starting_cash_quote", 1000.0)
+        )
         cfg["paper"]["stake_quote"] = float(cfg["paper"].get("stake_quote", 100.0))
 
         from algonovax.engine.engine import run
@@ -26,6 +29,7 @@ def main() -> int:
     except Exception as e:
         print(f"FATAL: {e}", file=sys.stderr)
         return 1
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

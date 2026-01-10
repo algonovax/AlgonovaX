@@ -121,7 +121,10 @@ def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     start_ts = int(candles[0][0])
     end_ts = int(candles[-1][0])
-    out = OUT_DIR / f"{exchange}_{symbol_to_fs(symbol)}_{timeframe}_{start_ts}_{end_ts}.json"
+    out = (
+        OUT_DIR
+        / f"{exchange}_{symbol_to_fs(symbol)}_{timeframe}_{start_ts}_{end_ts}.json"
+    )
 
     out.write_text(json.dumps(candles, indent=2), encoding="utf-8")
     print(f"WROTE {out}")

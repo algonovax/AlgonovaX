@@ -5,12 +5,13 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Tuple
 
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT_REPORT = ROOT / "data" / "backtest_report.json"
 OUT_TRADES = ROOT / "data" / "backtest_trades.json"
+
 
 # Candle rows: [ts_ms, open, high, low, close, vol]
 def load_candles(path: Path) -> List[List[float]]:
@@ -37,19 +38,25 @@ def max_drawdown(equity: List[float]) -> Tuple[float, float]:
     max_dd_pct = (max_dd / peak) if peak > 0 else 0.0
     return float(max_dd), float(max_dd_pct)
 
+
 def senv(k: str, d: str) -> str:
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else v.strip()
+
 
 def ienv(k: str, d: int) -> int:
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else int(v)
 
+
 def fenv(k: str, d: float) -> float:
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else float(v)
 
-def clamp_window(candles: List[List[float]], start_ms: int, end_ms: int) -> List[List[float]]:
+
+def clamp_window(
+    candles: List[List[float]], start_ms: int, end_ms: int
+) -> List[List[float]]:
     if start_ms <= 0 and end_ms <= 0:
         return candles
     out = []
@@ -62,13 +69,16 @@ def clamp_window(candles: List[List[float]], start_ms: int, end_ms: int) -> List
         out.append(r)
     return out
 
+
 def rolling_max(vals: List[float], n: int, idx: int) -> float:
     a = max(0, idx - n)
     return max(vals[a:idx]) if idx > a else vals[idx]
 
+
 def rolling_min(vals: List[float], n: int, idx: int) -> float:
     a = max(0, idx - n)
     return min(vals[a:idx]) if idx > a else vals[idx]
+
 
 @dataclass
 class Trade:
@@ -78,6 +88,7 @@ class Trade:
     exit_px: float
     qty: float
     pnl: float
+
 
 def main() -> int:
     try:
@@ -99,11 +110,11 @@ def main() -> int:
         stake_quote = fenv("STAKE_QUOTE", 100.0)
 
         # Tunable params (candidate knobs)
-        DONCHIAN_N = ienv("DONCHIAN_N", 20)           # breakout lookback
-        ATR_N = ienv("ATR_N", 14)                     # for stop
-        STOP_K = fenv("STOP_K", 2.0)                  # stop distance in ATR
-        TAKE_K = fenv("TAKE_K", 3.0)                  # takeprofit distance in ATR
-        MAX_HOLD = ienv("MAX_HOLD_BARS", 96)          # bars
+        DONCHIAN_N = ienv("DONCHIAN_N", 20)  # breakout lookback
+        ATR_N = ienv("ATR_N", 14)  # for stop
+        STOP_K = fenv("STOP_K", 2.0)  # stop distance in ATR
+        TAKE_K = fenv("TAKE_K", 3.0)  # takeprofit distance in ATR
+        MAX_HOLD = ienv("MAX_HOLD_BARS", 96)  # bars
 
         ts = [int(r[0]) for r in candles]
         high = [float(r[2]) for r in candles]
@@ -116,12 +127,18 @@ def main() -> int:
             if i == 0:
                 tr.append(high[i] - low[i])
             else:
-                tr.append(max(high[i]-low[i], abs(high[i]-close[i-1]), abs(low[i]-close[i-1])))
+                tr.append(
+                    max(
+                        high[i] - low[i],
+                        abs(high[i] - close[i - 1]),
+                        abs(low[i] - close[i - 1]),
+                    )
+                )
         atr: List[float] = [0.0] * len(candles)
         for i in range(len(candles)):
-            a = max(0, i-ATR_N+1)
-            w = tr[a:i+1]
-            atr[i] = sum(w)/len(w) if w else 0.0
+            a = max(0, i - ATR_N + 1)
+            w = tr[a : i + 1]
+            atr[i] = sum(w) / len(w) if w else 0.0
 
         trades: List[Trade] = []
         cum_pnl = 0.0
@@ -203,8 +220,8 @@ def main() -> int:
             "wins": wins,
             "losses": losses,
             "pnl": float(pnl),
-          "max_dd": max_dd,
-          "max_dd_pct": max_dd_pct,
+            "max_dd": max_dd,
+            "max_dd_pct": max_dd_pct,
             "pnl_pct": float(pnl_pct),
             "params": {
                 "DONCHIAN_N": DONCHIAN_N,
@@ -230,6 +247,7 @@ def main() -> int:
         OUT_REPORT.parent.mkdir(parents=True, exist_ok=True)
         OUT_REPORT.write_text(json.dumps({"error": str(e)}, indent=2), encoding="utf-8")
         return 2
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

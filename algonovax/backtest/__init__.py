@@ -8,7 +8,9 @@ import math
 try:
     import pandas as pd
 except Exception as e:
-    raise RuntimeError("pandas is required for backtest engine (strategy uses ewm). Install pandas.") from e
+    raise RuntimeError(
+        "pandas is required for backtest engine (strategy uses ewm). Install pandas."
+    ) from e
 
 
 @dataclass
@@ -37,6 +39,7 @@ def to_jsonable(x: Any) -> Any:
 def load_ohlcv_json(path) -> List[List[float]]:
     import json
     from pathlib import Path as _P
+
     p = _P(path)
     obj = json.loads(p.read_text(encoding="utf-8"))
     # Expect rows: [ts_ms, open, high, low, close, volume]
@@ -137,8 +140,8 @@ def run_backtest_atr_exits(
 
     ts = [int(r[0]) for r in candles]
     highs = _as_series([float(r[2]) for r in candles])
-    lows  = _as_series([float(r[3]) for r in candles])
-    closes= _as_series([float(r[4]) for r in candles])
+    lows = _as_series([float(r[3]) for r in candles])
+    closes = _as_series([float(r[4]) for r in candles])
 
     n = len(candles)
 
@@ -215,15 +218,17 @@ def run_backtest_atr_exits(
             dd = peak - equity
             max_dd = max(max_dd, dd)
 
-            trades.append(Trade(
-                entry_ts=ts[entry_i],
-                exit_ts=ts[i],
-                entry_px=float(entry_px),
-                exit_px=float(exit_px),
-                qty=float(qty),
-                pnl_quote=float(pnl),
-                reason=exit_reason,
-            ))
+            trades.append(
+                Trade(
+                    entry_ts=ts[entry_i],
+                    exit_ts=ts[i],
+                    entry_px=float(entry_px),
+                    exit_px=float(exit_px),
+                    qty=float(qty),
+                    pnl_quote=float(pnl),
+                    reason=exit_reason,
+                )
+            )
 
             in_pos = False
             entry_i = -1

@@ -7,7 +7,6 @@ import pandas as pd
 from .indicators import atr, ema, rsi
 from .types import Signal, Side
 from .registry import register
-from .types import Side, Signal
 
 
 def generate_signal(
@@ -28,13 +27,13 @@ def generate_signal(
     fast_slope_bars: int = 4,
     rsi_cross_lookback: int = 8,
     # pullback/extension guard (NEW)
-    max_extension_atr: float = 0.60,   # entry must be within this ATR above fast EMA
-    min_pullback_atr: float = -0.10,   # allow tiny dip below fast
+    max_extension_atr: float = 0.60,  # entry must be within this ATR above fast EMA
+    min_pullback_atr: float = -0.10,  # allow tiny dip below fast
     # --- risk/exit model ---
     atr_k: float = 2.2,
     trail_k: float = 2.0,
     rr: float = 1.5,
-    be_r: float = 1.0,                 # move SL to entry after +be_r * R
+    be_r: float = 1.0,  # move SL to entry after +be_r * R
     min_hold_bars: int = 6,
     max_hold_bars: int = 72,
     exit_trend_break: float = 0.997,
@@ -43,7 +42,7 @@ def generate_signal(
         if df is None or df.empty:
             return Signal(Side.HOLD, 0.0, "empty_df")
 
-        req = ['close', 'high', 'low']
+        req = ["close", "high", "low"]
         missing = [c for c in req if c not in df.columns]
         if missing:
             return Signal(Side.HOLD, 0.0, f"missing_cols:{','.join(missing)}")
@@ -85,7 +84,11 @@ def generate_signal(
             r_unit = max(1e-9, float(entry_price) - init_sl)
 
             # trailing from HH since entry using current ATR
-            hh = float(hi.iloc[entry_bar:]).max() if entry_bar < len(hi) else float(hi.iloc[-1])
+            hh = (
+                float(hi.iloc[entry_bar:]).max()
+                if entry_bar < len(hi)
+                else float(hi.iloc[-1])
+            )
             trail_sl = max(0.0, hh - trail_k * atr1)
 
             sl = max(init_sl, trail_sl)
@@ -97,12 +100,26 @@ def generate_signal(
             tp = float(entry_price) + rr * r_unit
 
             if bars_in_trade >= max_hold_bars:
-                return Signal(Side.SELL, 0.60, "ema_rsi_atr_exit_time", stop_loss=sl, take_profit=tp)
+                return Signal(
+                    Side.SELL,
+                    0.60,
+                    "ema_rsi_atr_exit_time",
+                    stop_loss=sl,
+                    take_profit=tp,
+                )
 
             if bars_in_trade >= min_hold_bars and c1 < trend1 * exit_trend_break:
-                return Signal(Side.SELL, 0.62, "ema_rsi_atr_exit_trend_break", stop_loss=sl, take_profit=tp)
+                return Signal(
+                    Side.SELL,
+                    0.62,
+                    "ema_rsi_atr_exit_trend_break",
+                    stop_loss=sl,
+                    take_profit=tp,
+                )
 
-            return Signal(Side.HOLD, 0.25, "ema_rsi_atr_hold", stop_loss=sl, take_profit=tp)
+            return Signal(
+                Side.HOLD, 0.25, "ema_rsi_atr_hold", stop_loss=sl, take_profit=tp
+            )
 
         # --- entry gates ---
         if atr1 <= 0:
@@ -123,7 +140,7 @@ def generate_signal(
         ext_atr = (c1 - fast1) / max(1e-9, atr1)
         pullback_ok = (ext_atr <= max_extension_atr) and (ext_atr >= min_pullback_atr)
 
-        r_win = rrsi.iloc[-(rsi_cross_lookback + 1):]
+        r_win = rrsi.iloc[-(rsi_cross_lookback + 1) :]
         r_prev = r_win.shift(1)
         cross_hits = (r_prev <= rsi_entry) & (r_win > rsi_entry)
         rsi_cross_recent = bool(cross_hits.fillna(False).any())
@@ -135,28 +152,58 @@ def generate_signal(
 
         impulse_ok = range1 >= impulse_atr * atr1
 
-        if not (long_regime and above_fast and fast_rising and pullback_ok and touch_fast and rsi_cross_recent and impulse_ok):
-            return Signal(Side.HOLD, 0.0, "no_setup")
+        # TERMUX fast: relax entry requirements so stub runs produce trades
+        termux_fast = os.environ.get("ALGONOVAX_TERMUX_FAST") == "1"
+
+        # diagnostics: report failing gates
+        fails = []
+        if not long_regime:
+            fails.append("long_regime")
+        if not above_fast:
+            fails.append("above_fast")
+        if not fast_rising:
+            fails.append("fast_rising")
+        if not pullback_ok:
+            fails.append("pullback_ok")
+        if not touch_fast:
+            fails.append("touch_fast")
+        if not rsi_cross_recent:
+            fails.append("rsi_cross_recent")
+        if not impulse_ok:
+            fails.append("impulse_ok")
+
+        if not termux_fast:
+            if fails:
+                return Signal(Side.HOLD, 0.0, "no_setup:" + ",".join(fails))
+        else:
+            # relaxed rule: only require regime + pullback-ish + touch; ignore RSI cross + impulse in stub land
+            if not (long_regime and pullback_ok and touch_fast and above_fast):
+                return Signal(Side.HOLD, 0.0, "no_setup_fast:" + ",".join(fails))
 
         entry = c1
         init_sl = max(0.0, entry - atr_k * atr1)
         r_unit = max(1e-9, entry - init_sl)
         tp = entry + rr * r_unit
 
-        return Signal(Side.BUY, 0.72, "ema_rsi_atr_buy_pullback", stop_loss=init_sl, take_profit=tp)
+        return Signal(
+            Side.BUY,
+            0.72,
+            "ema_rsi_atr_buy_pullback",
+            stop_loss=init_sl,
+            take_profit=tp,
+        )
 
     except Exception as e:
         traceback.print_exc()
-        if os.getenv('ALGONOVAX_FAIL_FAST') == '1':
+        if os.getenv("ALGONOVAX_FAIL_FAST") == "1":
             raise
         traceback.print_exc()
-        if os.getenv('ALGONOVAX_FAIL_FAST') == '1':
+        if os.getenv("ALGONOVAX_FAIL_FAST") == "1":
             raise
         return Signal(Side.HOLD, 0.0, f"error:{type(e).__name__}")
         traceback.print_exc()
-        if os.getenv('ALGONOVAX_FAIL_FAST') == '1':
+        if os.getenv("ALGONOVAX_FAIL_FAST") == "1":
             raise
-
 
 
 register("ema_rsi_atr", generate_signal)

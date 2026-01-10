@@ -3,15 +3,18 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+
 def _getenv(key: str, default: str | None = None) -> str | None:
     v = os.getenv(key)
     return v if v not in (None, "") else default
+
 
 def _getbool(key: str, default: bool = False) -> bool:
     v = _getenv(key)
     if v is None:
         return default
     return v.strip().lower() in {"1", "true", "yes", "y", "on"}
+
 
 def _getint(key: str, default: int) -> int:
     v = _getenv(key)
@@ -22,6 +25,7 @@ def _getint(key: str, default: int) -> int:
     except ValueError as e:
         raise ValueError(f"{key} must be an int") from e
 
+
 def _getfloat(key: str, default: float) -> float:
     v = _getenv(key)
     if v is None:
@@ -30,6 +34,7 @@ def _getfloat(key: str, default: float) -> float:
         return float(v)
     except ValueError as e:
         raise ValueError(f"{key} must be a float") from e
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -53,6 +58,7 @@ class Settings:
     kraken_api_key: str | None
     kraken_api_secret: str | None
 
+
 def load_settings() -> Settings:
     env = _getenv("ENV", "dev")
     paper_trading = _getbool("PAPER_TRADING_ENABLED", True)
@@ -68,7 +74,9 @@ def load_settings() -> Settings:
     port = _getint("PORT", 8001)
 
     log_level = _getenv("LOG_LEVEL", "INFO")
-    kill_switch_path = _getenv("KILL_SWITCH_PATH", "./data/KILL_SWITCH") or "./data/KILL_SWITCH"
+    kill_switch_path = (
+        _getenv("KILL_SWITCH_PATH", "./data/KILL_SWITCH") or "./data/KILL_SWITCH"
+    )
 
     max_daily_loss_usd = _getfloat("MAX_DAILY_LOSS_USD", 50.0)
     max_open_positions = _getint("MAX_OPEN_POSITIONS", 1)
@@ -84,7 +92,9 @@ def load_settings() -> Settings:
 
     if exchange == "kraken" and live_trading:
         if not kraken_api_key or not kraken_api_secret:
-            raise RuntimeError("Live Kraken trading requires KRAKEN_API_KEY and KRAKEN_API_SECRET")
+            raise RuntimeError(
+                "Live Kraken trading requires KRAKEN_API_KEY and KRAKEN_API_SECRET"
+            )
 
     return Settings(
         env=env,

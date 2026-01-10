@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE="$HOME/projects/AlgonovaX"
+BASE="${ALGONOVAX_ROOT:-$HOME/AlgonovaX}"
 JOB="$BASE/data/backtest_job.json"
 OUTDIR="$BASE/logs/backtests"
 OUT="$OUTDIR/backtest.out"
@@ -18,7 +18,7 @@ cat "$JOB" > "$OUTDIR/last_job.json"
 
 STRATEGY="$(python3 - <<'PY'
 import json, os
-p=os.path.expanduser("~/projects/AlgonovaX/data/backtest_job.json")
+p=os.path.expanduser("${ALGONOVAX_ROOT:-$HOME/AlgonovaX}/data/backtest_job.json")
 j=json.load(open(p))
 print(j.get("strategy","ema_rsi"))
 PY
@@ -26,7 +26,7 @@ PY
 
 SYMBOL="$(python3 - <<'PY'
 import json, os
-p=os.path.expanduser("~/projects/AlgonovaX/data/backtest_job.json")
+p=os.path.expanduser("${ALGONOVAX_ROOT:-$HOME/AlgonovaX}/data/backtest_job.json")
 j=json.load(open(p))
 print(j.get("symbol","BTC/USD"))
 PY
@@ -34,7 +34,7 @@ PY
 
 TIMEFRAME="$(python3 - <<'PY'
 import json, os
-p=os.path.expanduser("~/projects/AlgonovaX/data/backtest_job.json")
+p=os.path.expanduser("${ALGONOVAX_ROOT:-$HOME/AlgonovaX}/data/backtest_job.json")
 j=json.load(open(p))
 print(j.get("timeframe","1m"))
 PY
@@ -42,7 +42,7 @@ PY
 
 START="$(python3 - <<'PY'
 import json, os
-p=os.path.expanduser("~/projects/AlgonovaX/data/backtest_job.json")
+p=os.path.expanduser("${ALGONOVAX_ROOT:-$HOME/AlgonovaX}/data/backtest_job.json")
 j=json.load(open(p))
 print(j.get("start",""))
 PY
@@ -50,7 +50,7 @@ PY
 
 END="$(python3 - <<'PY'
 import json, os
-p=os.path.expanduser("~/projects/AlgonovaX/data/backtest_job.json")
+p=os.path.expanduser("${ALGONOVAX_ROOT:-$HOME/AlgonovaX}/data/backtest_job.json")
 j=json.load(open(p))
 print(j.get("end",""))
 PY
@@ -70,7 +70,7 @@ else
   echo "WARNING: scripts/backtest_engine.py not found. Using placeholder run." | tee -a "$OUT"
   "$BASE/.venv/bin/python" - <<'PY' 2>&1 | tee -a "$OUT"
 import time, json, os, random
-job=json.load(open(os.path.expanduser("~/projects/AlgonovaX/data/backtest_job.json")))
+job=json.load(open(os.path.expanduser("${ALGONOVAX_ROOT:-$HOME/AlgonovaX}/data/backtest_job.json")))
 equity=10000.0
 print("job:", job)
 for i in range(30):

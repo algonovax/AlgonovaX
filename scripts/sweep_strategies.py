@@ -15,10 +15,12 @@ RUNNER = ROOT / "scripts" / "backtest_multi_5m.py"
 REPORT = ROOT / "data" / "backtest_report.json"
 OUT_SEEDS = ROOT / "data" / "registry" / "seeds.jsonl"
 
+
 def _append_jsonl(path: Path, obj: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(obj, sort_keys=True) + "\n")
+
 
 def _run(env: dict[str, str]) -> dict[str, Any]:
     try:
@@ -53,13 +55,19 @@ def _run(env: dict[str, str]) -> dict[str, Any]:
         "err_tail": (cp.stderr or "")[-1200:],
     }
 
+
 def main() -> int:
     import argparse
+
     ap = argparse.ArgumentParser()
-    ap.add_argument("--iters", type=int, default=int(os.environ.get("SWEEP_ITERS", "80")))
+    ap.add_argument(
+        "--iters", type=int, default=int(os.environ.get("SWEEP_ITERS", "80"))
+    )
     ap.add_argument("--seed", type=int, default=int(os.environ.get("SEED", "1337")))
     ap.add_argument("--keep", type=int, default=int(os.environ.get("SWEEP_KEEP", "12")))
-    ap.add_argument("--candle-file", type=str, default=os.environ.get("CANDLE_FILE", ""))
+    ap.add_argument(
+        "--candle-file", type=str, default=os.environ.get("CANDLE_FILE", "")
+    )
     args = ap.parse_args()
 
     if not args.candle_file:
@@ -107,7 +115,9 @@ def main() -> int:
         elif strat == "ema_pullback":
             env["TREND_EMA"] = str(random.choice([50, 80, 120, 160]))
             env["SLOPE_BARS"] = str(random.choice([2, 3, 5, 8]))
-            env["PULLBACK_MAX"] = str(random.choice([0.0015, 0.0025, 0.0040]))  # 0.15%, 0.25%, 0.40%
+            env["PULLBACK_MAX"] = str(
+                random.choice([0.0015, 0.0025, 0.0040])
+            )  # 0.15%, 0.25%, 0.40%
         elif strat == "rsi_mean_revert":
             env["RSI_N"] = str(random.choice([10, 14, 21]))
             env["RSI_BUY"] = str(random.choice([22.0, 25.0, 28.0, 30.0]))
@@ -132,21 +142,39 @@ def main() -> int:
             "iter": i,
             "candle_file": str(candle_path),
             "strategy": strat,
-            "env_params": {k: env[k] for k in env.keys() if k in {
-                "STRATEGY","DONCHIAN_N","ATR_N","STOP_K","TAKE_K","MAX_HOLD_BARS",
-                "MIN_ATR_PCT","BREAKOUT_ATR_BUFFER","TREND_EMA","SLOPE_BARS","PULLBACK_MAX",
-                "RSI_N","RSI_BUY","RSI_SELL",
-            }},
+            "env_params": {
+                k: env[k]
+                for k in env.keys()
+                if k
+                in {
+                    "STRATEGY",
+                    "DONCHIAN_N",
+                    "ATR_N",
+                    "STOP_K",
+                    "TAKE_K",
+                    "MAX_HOLD_BARS",
+                    "MIN_ATR_PCT",
+                    "BREAKOUT_ATR_BUFFER",
+                    "TREND_EMA",
+                    "SLOPE_BARS",
+                    "PULLBACK_MAX",
+                    "RSI_N",
+                    "RSI_BUY",
+                    "RSI_SELL",
+                }
+            },
             "report": rep,
             "score": float(score),
             "meta": {
-                "fee_rate": float(base_env.get("FEE_RATE","0.001")),
-                "slippage_rate": float(base_env.get("SLIPPAGE_RATE","0.0003")),
-                "stake_quote": float(base_env.get("STAKE_QUOTE","100")),
+                "fee_rate": float(base_env.get("FEE_RATE", "0.001")),
+                "slippage_rate": float(base_env.get("SLIPPAGE_RATE", "0.0003")),
+                "stake_quote": float(base_env.get("STAKE_QUOTE", "100")),
             },
         }
         trials.append((float(score), rec))
-        print(f"[{i}/{args.iters}] strat={strat} score={score:.6f} pnl={float(rep.get('pnl',0.0)):.6f} dd={float(rep.get('max_dd_pct',0.0)):.6f} trades={int(rep.get('trades',0))}")
+        print(
+            f"[{i}/{args.iters}] strat={strat} score={score:.6f} pnl={float(rep.get('pnl', 0.0)):.6f} dd={float(rep.get('max_dd_pct', 0.0)):.6f} trades={int(rep.get('trades', 0))}"
+        )
 
     trials.sort(key=lambda x: x[0], reverse=True)
     keep = max(1, min(args.keep, len(trials)))
@@ -160,6 +188,7 @@ def main() -> int:
 
     print(f"WROTE {keep} seeds -> {OUT_SEEDS}")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

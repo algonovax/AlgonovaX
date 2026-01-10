@@ -7,7 +7,6 @@ import pandas as pd
 from .indicators import atr, ema, rsi
 from .types import Signal, Side
 from .registry import register
-from .types import Side, Signal
 
 
 def generate_signal(
@@ -25,12 +24,16 @@ def generate_signal(
         if df is None or df.empty:
             return Signal(Side.HOLD, 0.0, "empty_df")
 
-        req = ['close', 'high', 'low']
+        req = ["close", "high", "low"]
         missing = [c for c in req if c not in df.columns]
         if missing:
             return Signal(Side.HOLD, 0.0, f"missing_cols:{','.join(missing)}")
 
-        need = min_bars if min_bars is not None else max(trend_ema, pullback_ema, rsi_n, atr_n) + 5
+        need = (
+            min_bars
+            if min_bars is not None
+            else max(trend_ema, pullback_ema, rsi_n, atr_n) + 5
+        )
         if len(df) < need:
             return Signal(Side.HOLD, 0.0, f"warmup len={len(df)} need>={need}")
 
@@ -62,7 +65,9 @@ def generate_signal(
             entry = c1
             sl = max(0.0, entry - atr_k * atr1)
             tp = entry + rr * (entry - sl)
-            return Signal(Side.BUY, 0.75, "trend_pullback_atr_long", stop_loss=sl, take_profit=tp)
+            return Signal(
+                Side.BUY, 0.75, "trend_pullback_atr_long", stop_loss=sl, take_profit=tp
+            )
 
         # Exit: trend break down
         if c0 >= trend and c1 < trend:
@@ -71,16 +76,15 @@ def generate_signal(
         return Signal(Side.HOLD, 0.0, "no_setup")
     except Exception as e:
         traceback.print_exc()
-        if os.getenv('ALGONOVAX_FAIL_FAST') == '1':
+        if os.getenv("ALGONOVAX_FAIL_FAST") == "1":
             raise
         traceback.print_exc()
-        if os.getenv('ALGONOVAX_FAIL_FAST') == '1':
+        if os.getenv("ALGONOVAX_FAIL_FAST") == "1":
             raise
         return Signal(Side.HOLD, 0.0, f"error:{type(e).__name__}")
         traceback.print_exc()
-        if os.getenv('ALGONOVAX_FAIL_FAST') == '1':
+        if os.getenv("ALGONOVAX_FAIL_FAST") == "1":
             raise
-
 
 
 register("trend_pullback_atr", generate_signal)

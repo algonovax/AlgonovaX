@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$HOME/projects/AlgonovaX"
+cd "${ALGONOVAX_ROOT:-$HOME/AlgonovaX}"
 
 SRC="scripts/app_py.golden"
 DST="algonovax/gui/app.py"
 SVC="algonovax-gui.service"
-PY="$HOME/projects/AlgonovaX/.venv/bin/python"
+PY="${ALGONOVAX_ROOT:-$HOME/AlgonovaX}/.venv/bin/python"
 
 die(){ echo "ERROR: $*" >&2; exit 1; }
 trap 'die "Failed at line $LINENO"' ERR

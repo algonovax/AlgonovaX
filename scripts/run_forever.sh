@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$HOME/projects/AlgonovaX"
+cd "${ALGONOVAX_ROOT:-$HOME/AlgonovaX}"
 source .venv/bin/activate
 
 LOG="logs/mvp_$(date +%Y%m%d_%H%M%S).log"

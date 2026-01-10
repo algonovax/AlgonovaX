@@ -9,7 +9,6 @@ import sys
 import time
 from pathlib import Path
 import re
-from typing import Any, Dict, Tuple
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +17,7 @@ REG_DIR.mkdir(parents=True, exist_ok=True)
 
 RUNNER = ROOT / "scripts" / "backtest_kraken_5m.py"
 OUT_REPORT = ROOT / "data" / "backtest_report.json"
+
 
 # Expected candle filename:
 # kraken_BTC_USD_5m_<start_ms>_<end_ms>.json
@@ -37,13 +37,21 @@ def _append_jsonl(path: Path, obj: dict) -> None:
     except Exception as e:
         print(f"ERROR: failed writing registry: {e}")
 
+
 def main() -> int:
     import argparse
+
     ap = argparse.ArgumentParser()
-    ap.add_argument("--iterations", type=int, default=int(os.environ.get("TRAIN_ITERS", "60")))
+    ap.add_argument(
+        "--iterations", type=int, default=int(os.environ.get("TRAIN_ITERS", "60"))
+    )
     ap.add_argument("--seed", type=int, default=int(os.environ.get("SEED", "1337")))
-    ap.add_argument("--candle-file", type=str, default=os.environ.get("CANDLE_FILE", ""))
-    ap.add_argument("--keep-top", type=int, default=int(os.environ.get("TRAIN_KEEP_TOP", "60")))
+    ap.add_argument(
+        "--candle-file", type=str, default=os.environ.get("CANDLE_FILE", "")
+    )
+    ap.add_argument(
+        "--keep-top", type=int, default=int(os.environ.get("TRAIN_KEEP_TOP", "60"))
+    )
 
     args = ap.parse_args()
 
@@ -62,13 +70,13 @@ def main() -> int:
     except Exception as e:
         print(f"ERROR: {e}")
         return 2
-    train_days = int(os.environ.get("TRAIN_DAYS","30"))
-    test_days  = int(os.environ.get("TEST_DAYS","15"))
-    ms_day = 24*60*60*1000
+    train_days = int(os.environ.get("TRAIN_DAYS", "30"))
+    test_days = int(os.environ.get("TEST_DAYS", "15"))
+    ms_day = 24 * 60 * 60 * 1000
     test_end_ms = file_end_ms
-    test_start_ms = test_end_ms - test_days*ms_day
+    test_start_ms = test_end_ms - test_days * ms_day
     train_end_ms = test_start_ms
-    train_start_ms = train_end_ms - train_days*ms_day
+    train_start_ms = train_end_ms - train_days * ms_day
 
     reg_path = REG_DIR / "candidates.jsonl"
     random.seed(args.seed)
@@ -81,12 +89,12 @@ def main() -> int:
 
     for i in range(1, args.iterations + 1):
         params = {
-    "DONCHIAN_N": random.randint(10, 60),
-    "ATR_N": random.randint(10, 30),
-    "STOP_K": round(random.uniform(1.0, 4.0), 2),
-    "TAKE_K": round(random.uniform(1.0, 6.0), 2),
-    "MAX_HOLD_BARS": random.choice([24, 48, 72, 96, 144]),
-}
+            "DONCHIAN_N": random.randint(10, 60),
+            "ATR_N": random.randint(10, 30),
+            "STOP_K": round(random.uniform(1.0, 4.0), 2),
+            "TAKE_K": round(random.uniform(1.0, 6.0), 2),
+            "MAX_HOLD_BARS": random.choice([24, 48, 72, 96, 144]),
+        }
         t0 = time.time()
         rec = {
             "ts": int(time.time()),
@@ -128,7 +136,7 @@ def main() -> int:
                     r = json.loads(OUT_REPORT.read_text(encoding="utf-8"))
                     rec["report"] = r
                     trades = int(r.get("trades", 0)) if isinstance(r, dict) else 0
-                    rec["ok"] = (trades > 0 and float(r.get("pnl", 0.0)) > 0.0)
+                    rec["ok"] = trades > 0 and float(r.get("pnl", 0.0)) > 0.0
                 except Exception as e:
                     rec["error"] = f"bad report json: {e}"
             else:
@@ -162,6 +170,7 @@ def main() -> int:
     if not ok_any:
         print("No profitable candidates on TRAIN window.")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

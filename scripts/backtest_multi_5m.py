@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Tuple
@@ -11,6 +10,7 @@ from typing import Any, List, Tuple
 ROOT = Path(__file__).resolve().parents[1]
 OUT_REPORT = ROOT / "data" / "backtest_report.json"
 OUT_TRADES = ROOT / "data" / "backtest_trades.json"
+
 
 def load_candles(path: Path) -> List[List[float]]:
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -20,19 +20,25 @@ def load_candles(path: Path) -> List[List[float]]:
         raise ValueError("bad candle json")
     return data
 
+
 def senv(k: str, d: str) -> str:
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else v.strip()
+
 
 def ienv(k: str, d: int) -> int:
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else int(v)
 
+
 def fenv(k: str, d: float) -> float:
     v = os.environ.get(k)
     return d if v is None or v.strip() == "" else float(v)
 
-def clamp_window(candles: List[List[float]], start_ms: int, end_ms: int) -> List[List[float]]:
+
+def clamp_window(
+    candles: List[List[float]], start_ms: int, end_ms: int
+) -> List[List[float]]:
     if start_ms <= 0 and end_ms <= 0:
         return candles
     out: List[List[float]] = []
@@ -45,9 +51,11 @@ def clamp_window(candles: List[List[float]], start_ms: int, end_ms: int) -> List
         out.append(r)
     return out
 
+
 def rolling_max(vals: List[float], n: int, idx: int) -> float:
     a = max(0, idx - n)
     return max(vals[a:idx]) if idx > a else vals[idx]
+
 
 def ema(series: List[float], n: int) -> List[float]:
     if n <= 1:
@@ -57,6 +65,7 @@ def ema(series: List[float], n: int) -> List[float]:
     for i in range(1, len(series)):
         out.append(alpha * float(series[i]) + (1.0 - alpha) * out[-1])
     return out
+
 
 def rsi(close: List[float], n: int) -> List[float]:
     if n <= 1:
@@ -82,17 +91,22 @@ def rsi(close: List[float], n: int) -> List[float]:
         out[i] = 100.0 - (100.0 / (1.0 + rs))
     return out
 
-def compute_atr(high: List[float], low: List[float], close: List[float], n: int) -> List[float]:
+
+def compute_atr(
+    high: List[float], low: List[float], close: List[float], n: int
+) -> List[float]:
     tr: List[float] = []
     for i in range(len(close)):
         if i == 0:
             tr.append(float(high[i]) - float(low[i]))
         else:
-            tr.append(max(
-                float(high[i]) - float(low[i]),
-                abs(float(high[i]) - float(close[i - 1])),
-                abs(float(low[i]) - float(close[i - 1])),
-            ))
+            tr.append(
+                max(
+                    float(high[i]) - float(low[i]),
+                    abs(float(high[i]) - float(close[i - 1])),
+                    abs(float(low[i]) - float(close[i - 1])),
+                )
+            )
     out: List[float] = [0.0] * len(close)
     n = max(1, int(n))
     for i in range(len(close)):
@@ -100,6 +114,7 @@ def compute_atr(high: List[float], low: List[float], close: List[float], n: int)
         w = tr[a : i + 1]
         out[i] = (sum(w) / len(w)) if w else 0.0
     return out
+
 
 def max_drawdown(equity: List[float]) -> Tuple[float, float]:
     if not equity:
@@ -116,6 +131,7 @@ def max_drawdown(equity: List[float]) -> Tuple[float, float]:
     max_dd_pct = (max_dd / peak) if peak > 0 else 0.0
     return float(max_dd), float(max_dd_pct)
 
+
 @dataclass
 class Trade:
     strategy: str
@@ -127,7 +143,10 @@ class Trade:
     pnl: float
     reason: str
 
-def entry_signal(strategy: str, i: int, high: List[float], close: List[float], atr: List[float]) -> bool:
+
+def entry_signal(
+    strategy: str, i: int, high: List[float], close: List[float], atr: List[float]
+) -> bool:
     if strategy == "donchian_breakout_atr":
         donchian_n = ienv("DONCHIAN_N", 20)
         min_atr_pct = fenv("MIN_ATR_PCT", 0.0)
@@ -154,7 +173,11 @@ def entry_signal(strategy: str, i: int, high: List[float], close: List[float], a
         slope = float(ema_line[i] - ema_line[i - slope_bars])
         if slope <= 0:
             return False
-        dist = (float(close[i]) - float(ema_line[i])) / float(ema_line[i]) if float(ema_line[i]) else 0.0
+        dist = (
+            (float(close[i]) - float(ema_line[i])) / float(ema_line[i])
+            if float(ema_line[i])
+            else 0.0
+        )
         return float(close[i]) > float(ema_line[i]) and dist <= pullback_max
 
     if strategy == "rsi_mean_revert":
@@ -172,8 +195,18 @@ def entry_signal(strategy: str, i: int, high: List[float], close: List[float], a
 
     raise ValueError(f"unknown STRATEGY={strategy}")
 
-def exit_signal(strategy: str, i: int, high: List[float], low: List[float], close: List[float], atr: List[float],
-                entry_i: int, stop_px: float, take_px: float) -> Tuple[bool, float, str]:
+
+def exit_signal(
+    strategy: str,
+    i: int,
+    high: List[float],
+    low: List[float],
+    close: List[float],
+    atr: List[float],
+    entry_i: int,
+    stop_px: float,
+    take_px: float,
+) -> Tuple[bool, float, str]:
     slip_rate = fenv("SLIPPAGE_RATE", 0.0003)
 
     hit_stop = float(low[i]) <= float(stop_px)
@@ -196,6 +229,7 @@ def exit_signal(strategy: str, i: int, high: List[float], low: List[float], clos
             return True, float(close[i]) * (1.0 - slip_rate), "rsi_exit"
 
     return False, 0.0, ""
+
 
 def main() -> int:
     try:
@@ -240,7 +274,10 @@ def main() -> int:
         stop_px = 0.0
         take_px = 0.0
 
-        warmup = max(ienv("DONCHIAN_N", 20), atr_n, ienv("TREND_EMA", 80), ienv("RSI_N", 14)) + 2
+        warmup = (
+            max(ienv("DONCHIAN_N", 20), atr_n, ienv("TREND_EMA", 80), ienv("RSI_N", 14))
+            + 2
+        )
 
         for i in range(warmup, len(candles)):
             if not in_pos:
@@ -255,23 +292,27 @@ def main() -> int:
                     take_px = entry_px + take_k * a
                     in_pos = True
             else:
-                do_exit, exit_px, reason = exit_signal(strategy, i, high, low, close, atr, entry_i, stop_px, take_px)
+                do_exit, exit_px, reason = exit_signal(
+                    strategy, i, high, low, close, atr, entry_i, stop_px, take_px
+                )
                 if do_exit:
                     proceeds = qty * float(exit_px) * (1.0 - fee_rate)
                     pnl = float(proceeds) - float(stake_quote)
                     cum_pnl += pnl
                     equity.append(float(stake_quote) + float(cum_pnl))
 
-                    trades.append(Trade(
-                        strategy=strategy,
-                        entry_ts=ts[entry_i],
-                        entry_px=float(entry_px),
-                        exit_ts=ts[i],
-                        exit_px=float(exit_px),
-                        qty=float(qty),
-                        pnl=float(pnl),
-                        reason=str(reason),
-                    ))
+                    trades.append(
+                        Trade(
+                            strategy=strategy,
+                            entry_ts=ts[entry_i],
+                            entry_px=float(entry_px),
+                            exit_ts=ts[i],
+                            exit_px=float(exit_px),
+                            qty=float(qty),
+                            pnl=float(pnl),
+                            reason=str(reason),
+                        )
+                    )
                     in_pos = False
                     entry_i = -1
 
@@ -296,11 +337,26 @@ def main() -> int:
             "max_dd": float(max_dd),
             "max_dd_pct": float(max_dd_pct),
             "pnl_pct": float(pnl_pct),
-            "params": {k: os.environ.get(k) for k in [
-                "STRATEGY","DONCHIAN_N","ATR_N","STOP_K","TAKE_K","MAX_HOLD_BARS",
-                "MIN_ATR_PCT","BREAKOUT_ATR_BUFFER","TREND_EMA","SLOPE_BARS","PULLBACK_MAX",
-                "RSI_N","RSI_BUY","RSI_SELL",
-            ] if os.environ.get(k) is not None},
+            "params": {
+                k: os.environ.get(k)
+                for k in [
+                    "STRATEGY",
+                    "DONCHIAN_N",
+                    "ATR_N",
+                    "STOP_K",
+                    "TAKE_K",
+                    "MAX_HOLD_BARS",
+                    "MIN_ATR_PCT",
+                    "BREAKOUT_ATR_BUFFER",
+                    "TREND_EMA",
+                    "SLOPE_BARS",
+                    "PULLBACK_MAX",
+                    "RSI_N",
+                    "RSI_BUY",
+                    "RSI_SELL",
+                ]
+                if os.environ.get(k) is not None
+            },
             "costs": {
                 "fee_rate": float(fee_rate),
                 "slippage_rate": float(slip_rate),
@@ -309,16 +365,21 @@ def main() -> int:
         }
 
         OUT_REPORT.write_text(json.dumps(report, indent=2), encoding="utf-8")
-        OUT_TRADES.write_text(json.dumps([t.__dict__ for t in trades], indent=2), encoding="utf-8")
+        OUT_TRADES.write_text(
+            json.dumps([t.__dict__ for t in trades], indent=2), encoding="utf-8"
+        )
         return 0
 
     except Exception as e:
         try:
             OUT_REPORT.parent.mkdir(parents=True, exist_ok=True)
-            OUT_REPORT.write_text(json.dumps({"error": str(e)}, indent=2), encoding="utf-8")
+            OUT_REPORT.write_text(
+                json.dumps({"error": str(e)}, indent=2), encoding="utf-8"
+            )
         except Exception:
             pass
         return 2
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

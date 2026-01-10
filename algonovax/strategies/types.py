@@ -18,6 +18,8 @@ class Signal:
     reason: str
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
+
+
 def coerce_side(x: object) -> Side:
     """
     Normalize external inputs to Side.

@@ -73,7 +73,7 @@ def main() -> None:
         long_regime = (c1 > trend1) and trend_rising
         above_fast = c1 > fast1
 
-        r_window = rr.iloc[i - (rsi_cross_lookback + 1): i]
+        r_window = rr.iloc[i - (rsi_cross_lookback + 1) : i]
         r_prev = r_window.shift(1)
         cross_hits = (r_prev <= rsi_entry) & (r_window > rsi_entry)
         rsi_cross_recent = bool(cross_hits.fillna(False).any())
@@ -94,7 +94,14 @@ def main() -> None:
         if impulse_ok:
             g_impulse += 1
 
-        ok = atr_ok and impulse_ok and long_regime and above_fast and fast_rising and rsi_cross_recent
+        ok = (
+            atr_ok
+            and impulse_ok
+            and long_regime
+            and above_fast
+            and fast_rising
+            and rsi_cross_recent
+        )
         if ok:
             g_all += 1
             last_good = (i, c1, trend1, fast1, atr1, range1)
@@ -102,17 +109,38 @@ def main() -> None:
     print("rows", len(df), "warmup", warmup, "windows_tested", total)
     print(
         "gate_pass_counts:",
-        "atr_ok", g_atr,
-        "long_regime", g_regime,
-        "fast_rising", g_fast,
-        "above_fast", g_above,
-        "rsi_cross_recent", g_rsi_recent,
-        "impulse_ok", g_impulse,
-        "ALL", g_all,
+        "atr_ok",
+        g_atr,
+        "long_regime",
+        g_regime,
+        "fast_rising",
+        g_fast,
+        "above_fast",
+        g_above,
+        "rsi_cross_recent",
+        g_rsi_recent,
+        "impulse_ok",
+        g_impulse,
+        "ALL",
+        g_all,
     )
     if last_good:
         i, c1, t1, f1, a1, rg = last_good
-        print("last_ALL_hit:", "i", i, "close", c1, "trend", t1, "fast", f1, "atr", a1, "range", rg)
+        print(
+            "last_ALL_hit:",
+            "i",
+            i,
+            "close",
+            c1,
+            "trend",
+            t1,
+            "fast",
+            f1,
+            "atr",
+            a1,
+            "range",
+            rg,
+        )
 
 
 if __name__ == "__main__":

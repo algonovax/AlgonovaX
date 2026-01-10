@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LOCK="$HOME/projects/AlgonovaX/data/engine.lock"
-PY="$HOME/projects/AlgonovaX/.venv/bin/python"
-RUNNER="$HOME/projects/AlgonovaX/scripts/engine_runner.py"
+LOCK="${ALGONOVAX_ROOT:-$HOME/AlgonovaX}/data/engine.lock"
+PY="${ALGONOVAX_ROOT:-$HOME/AlgonovaX}/.venv/bin/python"
+RUNNER="${ALGONOVAX_ROOT:-$HOME/AlgonovaX}/scripts/engine_runner.py"
 
 # If lock is held, exit 0 (service remains inactive, no restart loop)
 if ! /usr/bin/flock -n "$LOCK" -c "exec '$PY' -u '$RUNNER'"; then

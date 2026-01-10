@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_DIR="${ALGONOVAX_PROJECT_DIR:-$HOME/projects/AlgonovaX}"
+PROJECT_DIR="${ALGONOVAX_PROJECT_DIR:-${ALGONOVAX_ROOT:-$HOME/AlgonovaX}}"
 APP_PY="$PROJECT_DIR/algonovax/gui/app.py"
 
 die() { echo "ERROR: $*" >&2; exit 1; }

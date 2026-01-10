@@ -11,6 +11,7 @@ from .engine import run_loop
 
 log = logging.getLogger("algonovax.api")
 
+
 def create_app() -> FastAPI:
     settings = load_settings()
     configure_logging(settings.log_level)

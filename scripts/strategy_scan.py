@@ -89,7 +89,9 @@ def main():
             sells += 1
             print("SELL", i, sig.reason)
 
-    print("SUMMARY", "rows", len(df), "lookback", lookback, "buys", buys, "sells", sells)
+    print(
+        "SUMMARY", "rows", len(df), "lookback", lookback, "buys", buys, "sells", sells
+    )
     if kwargs:
         print("USED_KWARGS", kwargs)
 
