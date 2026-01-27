@@ -62,7 +62,7 @@ def fetch_ohlc_kraken(pair: str, interval_min: int, days: int) -> list[list[floa
         stagnant = 0
 
         # rows are [time, open, high, low, close, vwap, volume, count]
-        # normalize to [ts_ms, o, h, l, c, v]
+        # normalize to [ts_ms, o, h, lo, c, v]
         appended = 0
         last_ts_sec = None
         for row in rows:
@@ -70,7 +70,7 @@ def fetch_ohlc_kraken(pair: str, interval_min: int, days: int) -> list[list[floa
                 ts_sec = int(row[0])
                 o = float(row[1])
                 h = float(row[2])
-                l = float(row[3])
+                lo = float(row[3])
                 c = float(row[4])
                 v = float(row[6])
             except Exception:
@@ -80,7 +80,7 @@ def fetch_ohlc_kraken(pair: str, interval_min: int, days: int) -> list[list[floa
             # skip anything before our desired since_ms
             if ts_ms < since_ms:
                 continue
-            out.append([ts_ms, o, h, l, c, v])
+            out.append([ts_ms, o, h, lo, c, v])
             appended += 1
             last_ts_sec = ts_sec
 

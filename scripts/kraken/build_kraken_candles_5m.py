@@ -64,9 +64,9 @@ def build_ohlcv(trades: List[Any], timeframe_ms: int) -> List[List[float]]:
         o = rows[0][1]
         c = rows[-1][1]
         h = max(r[1] for r in rows)
-        l = min(r[1] for r in rows)
+        lo = min(r[1] for r in rows)
         v = sum(r[2] for r in rows)
-        out.append([int(b), float(o), float(h), float(l), float(c), float(v)])
+        out.append([int(b), float(o), float(h), float(lo), float(c), float(v)])
 
     return out
 

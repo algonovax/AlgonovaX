@@ -13,7 +13,7 @@ class Candle:
     ts: int
     o: float
     h: float
-    l: float
+    lo: float
     c: float
     v: float
 
@@ -27,18 +27,18 @@ def load_kraken_ohlcv_json(path: Path) -> list[Candle]:
         out: list[Candle] = []
         for row in raw:
             if isinstance(row, list) and len(row) >= 6:
-                ts, o, h, l, c, v = row[:6]
+                ts, o, h, lo, c, v = row[:6]
             elif isinstance(row, dict):
                 ts = row.get("ts") or row.get("timestamp") or row.get("time")
                 o = row.get("open")
                 h = row.get("high")
-                l = row.get("low")
+                lo = row.get("low")
                 c = row.get("close")
                 v = row.get("volume")
             else:
                 continue
             out.append(
-                Candle(int(ts), float(o), float(h), float(l), float(c), float(v))
+                Candle(int(ts), float(o), float(h), float(lo), float(c), float(v))
             )
 
         if not out:

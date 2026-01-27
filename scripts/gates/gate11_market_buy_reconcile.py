@@ -41,7 +41,7 @@ def main():
             die(f"Symbol not found: {symbol}")
 
         m = ex.markets[symbol]
-        base = m.get("base")
+
         quote = m.get("quote")
         if quote != "USDT":
             die(f"Gate11 expects USDT quote. Got quote={quote}")

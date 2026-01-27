@@ -133,7 +133,7 @@ def resolve_strategy(cfg: dict[str, Any]):
                 return mod.Strategy()
         except Exception as e:
             # TB_ON_RUNNER_FATAL
-            tb = traceback.format_exc()
+
             last_err = e
 
     # function-style strategy -> adapt

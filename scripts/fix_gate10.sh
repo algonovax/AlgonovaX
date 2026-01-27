@@ -11,7 +11,7 @@ on_err() {
 }
 trap on_err ERR
 
-cat > scripts/gate10_reconcile.py <<'PY'
+cat > scripts/gates/gate10_reconcile.py <<'PY'
 #!/usr/bin/env python3
 import os
 import sys
@@ -70,5 +70,5 @@ if __name__ == "__main__":
     main()
 PY
 
-chmod +x scripts/gate10_reconcile.py
-echo "OK: rewrote scripts/gate10_reconcile.py"
+chmod +x scripts/gates/gate10_reconcile.py
+echo "OK: rewrote scripts/gates/gate10_reconcile.py"

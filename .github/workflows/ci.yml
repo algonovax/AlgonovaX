@@ -2,30 +2,36 @@ name: CI
 
 on:
   push:
+    branches: ["**"]
   pull_request:
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
-          python-version-file: ".python-version"
-          cache: "pip"
+          python-version: "3.12"
 
-      - name: Install deps
-        shell: bash
+      - name: Install
         run: |
-          set -euo pipefail
-          python -m pip install -U pip
-          python -m pip install -e ".[test]" || python -m pip install -e .
-          python -m pip install -U pytest
+          python -m pip install -U pip setuptools wheel
+          python -m pip install -e .
+          python -m pip install -U ruff pytest
 
-      - name: Run tests
-        shell: bash
+      - name: Lint (ruff)
         run: |
-          set -euo pipefail
+          ruff --version
+          ruff check algonovax
+
+      - name: Tests
+        run: |
           pytest -q
+      - name: Import check
+        run: |
+          python -c "import algonovax; print('algonovax import ok')"

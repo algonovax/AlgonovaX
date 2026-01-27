@@ -38,8 +38,7 @@ def main() -> int:
                     REPORT.unlink()
             except Exception:
                 pass
-
-            proc = subprocess.run(
+            subprocess.run(
                 [sys.executable, "-u", str(BT)],
                 cwd=str(ROOT),
                 env=env,

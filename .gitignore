@@ -72,3 +72,13 @@ algonovax/gui/app.py
 *.bak_*
 *.bakpatch.*
 audit/
+
+# runtime / local
+logs/
+var/
+data/
+*.log
+*.pid
+*.sqlite
+.env
+.env.*

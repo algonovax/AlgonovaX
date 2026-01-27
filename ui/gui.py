@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 
-TERMUX = bool(os.environ.get('TERMUX_VERSION') or 'com.termux' in os.environ.get('PREFIX',''))
 import shutil
 import json
 import subprocess
@@ -11,18 +10,38 @@ import hashlib
 from typing import Optional
 
 from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+)
 from fastapi.templating import Jinja2Templates
+
+TERMUX = bool(
+    os.environ.get("TERMUX_VERSION") or "com.termux" in os.environ.get("PREFIX", "")
+)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 ENGINE_SERVICE = os.getenv("ALGONOVAX_ENGINE_SERVICE", "algonovax-engine.service")
-KILLSWITCH_SERVICE = os.getenv("ALGONOVAX_KILLSWITCH_SERVICE", "algonovax-killswitch.timer")
+KILLSWITCH_SERVICE = os.getenv(
+    "ALGONOVAX_KILLSWITCH_SERVICE", "algonovax-killswitch.timer"
+)
 BACKTEST_SERVICE = os.getenv("ALGONOVAX_BACKTEST_SERVICE", "algonovax-backtest.service")
 
 BASE = os.environ.get("ALGONOVAX_ROOT") or os.path.expanduser("~/AlgonovaX")
 LOG_PATH = f"{BASE}/logs/engine.log"
+OVERRIDE_FILE = os.path.join(
+    os.path.expanduser("~"),
+    ".config",
+    "systemd",
+    "user",
+    f"{ENGINE_SERVICE}.d",
+    "override.conf",
+)
+
 KS_HARD = f"{BASE}/data/KILL_SWITCH"
 KS_SOFT = f"{BASE}/data/KILL_SWITCH_SOFT"
 LOCK_PATH = f"{BASE}/data/engine.lock"
@@ -61,6 +80,7 @@ INTENTS_PATH = f"{BASE}/data/intents.json"
 
 def _now() -> int:
     import time
+
     return int(time.time())
 
 
@@ -86,7 +106,9 @@ def _read_list(path: str):
 
 def _run(cmd: list[str]) -> str:
     try:
-        p = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        p = subprocess.run(
+            cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        )
         return p.stdout.strip()
     except subprocess.CalledProcessError as e:
         raise HTTPException(status_code=500, detail=e.stdout or str(e))
@@ -94,10 +116,9 @@ def _run(cmd: list[str]) -> str:
 
 def _systemctl(*args: str) -> str:
     # Termux/Android has no systemd/systemctl.
-    if TERMUX or shutil.which('systemctl') is None:
-        return '(termux) skip systemctl'
-    return _run(['systemctl', '--user', *args])
-
+    if TERMUX or shutil.which("systemctl") is None:
+        return "(termux) skip systemctl"
+    return _run(["systemctl", "--user", *args])
 
 
 def _is_active(unit: str) -> str:
@@ -220,7 +241,9 @@ def ui_home(request: Request):
     if _auth_enabled():
         token = request.cookies.get(COOKIE_NAME)
         if not _session_ok(token):
-            return templates.TemplateResponse("login.html", {"request": request, "enabled": True})
+            return templates.TemplateResponse(
+                "login.html", {"request": request, "enabled": True}
+            )
     return templates.TemplateResponse("dashboard.html", {"request": request})
 
 
@@ -230,7 +253,12 @@ def api_auth_setup(pin: str):
     if len(pin) < 4 or len(pin) > 12 or not pin.isdigit():
         raise HTTPException(status_code=400, detail="pin_must_be_4_to_12_digits")
     salt = secrets.token_bytes(16).hex()
-    cfg = {"enabled": True, "salt": salt, "pin_hash": _hash_pin(pin, salt), "sessions": {}}
+    cfg = {
+        "enabled": True,
+        "salt": salt,
+        "pin_hash": _hash_pin(pin, salt),
+        "sessions": {},
+    }
     _write_obj(AUTH_PATH, cfg)
     return {"ok": True}
 
@@ -279,7 +307,9 @@ def api_status(request: Request):
         "engine_lock_exists": os.path.exists(LOCK_PATH),
         "log_path": LOG_PATH,
         "auth_enabled": _auth_enabled(),
-        "override_file": (OVERRIDE_FILE if (not TERMUX and shutil.which("systemctl")) else None),
+        "override_file": (
+            OVERRIDE_FILE if (not TERMUX and shutil.which("systemctl")) else None
+        ),
         "intents_file": INTENTS_PATH,
     }
 
@@ -460,9 +490,20 @@ def api_backtest_run(request: Request, job: dict):
     end = (job.get("end") or "").strip()
 
     if not strategy or not symbol or not timeframe:
-        raise HTTPException(status_code=400, detail="strategy_symbol_timeframe_required")
+        raise HTTPException(
+            status_code=400, detail="strategy_symbol_timeframe_required"
+        )
 
-    _write_obj(BT_JOB_PATH, {"strategy": strategy, "symbol": symbol, "timeframe": timeframe, "start": start, "end": end})
+    _write_obj(
+        BT_JOB_PATH,
+        {
+            "strategy": strategy,
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "start": start,
+            "end": end,
+        },
+    )
     _systemctl("start", BACKTEST_SERVICE)
     return {"ok": True}
 
