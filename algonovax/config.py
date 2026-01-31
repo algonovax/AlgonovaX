@@ -52,7 +52,7 @@ class Settings:
     log_level: str
     kill_switch_path: str
 
-    require_kill_switch_for_live: bool
+    require_kill_switch_off_for_live: bool
 
     max_daily_loss_usd: float
     max_open_positions: int
@@ -79,8 +79,7 @@ def load_settings() -> Settings:
     kill_switch_path = (
         _getenv("KILL_SWITCH_PATH", "./data/KILL_SWITCH") or "./data/KILL_SWITCH"
     )
-    require_kill_switch_for_live = _getbool("REQUIRE_KILL_SWITCH_FOR_LIVE", False)
-
+    require_kill_switch_off_for_live = _getbool("REQUIRE_KILL_SWITCH_OFF_FOR_LIVE", True)
 
     max_daily_loss_usd = _getfloat("MAX_DAILY_LOSS_USD", 50.0)
     max_open_positions = _getint("MAX_OPEN_POSITIONS", 1)
@@ -100,14 +99,15 @@ def load_settings() -> Settings:
                 "Live Kraken trading requires KRAKEN_API_KEY and KRAKEN_API_SECRET"
             )
 
-    if live_trading and require_kill_switch_for_live:
+
+    if live_trading and require_kill_switch_off_for_live:
         from pathlib import Path
         ks = Path(kill_switch_path)
         if not ks.is_absolute():
             ks = (Path.cwd() / ks).resolve()
-        if not ks.exists():
+        if ks.exists():
             raise RuntimeError(
-                "LIVE_TRADING_ENABLED=1 requires kill switch file to exist (set REQUIRE_KILL_SWITCH_FOR_LIVE=0 to bypass)"
+                "LIVE_TRADING_ENABLED=1 requires kill switch to be OFF (remove data/KILL_SWITCH or set REQUIRE_KILL_SWITCH_OFF_FOR_LIVE=0)"
             )
 
     return Settings(
@@ -121,7 +121,7 @@ def load_settings() -> Settings:
         port=port,
         log_level=log_level,
         kill_switch_path=kill_switch_path,
-        require_kill_switch_for_live=require_kill_switch_for_live,
+        require_kill_switch_off_for_live=require_kill_switch_off_for_live,
         max_daily_loss_usd=max_daily_loss_usd,
         max_open_positions=max_open_positions,
         kraken_api_key=kraken_api_key,
