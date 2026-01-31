@@ -50,6 +50,16 @@ def run_engine() -> int:
     from algonovax.engine.core import run_loop as settings_run_loop
 
     settings = load_settings()
+    # ENGINE_CONFIG_GUARDS
+    # Safety: refuse contradictory modes.
+    if settings.live_trading:
+        if settings.exchange != "kraken":
+            raise RuntimeError("LIVE_TRADING_ENABLED=1 requires EXCHANGE=kraken")
+    if settings.exchange == "paper":
+        if not settings.paper_trading:
+            raise RuntimeError("EXCHANGE=paper requires PAPER_TRADING_ENABLED=1")
+        if settings.live_trading:
+            raise RuntimeError("EXCHANGE=paper is incompatible with LIVE_TRADING_ENABLED=1")
     try:
         settings_run_loop(settings)
         return 0
