@@ -5,8 +5,9 @@ ROOT="${ALGONOVAX_ROOT:-$HOME/AlgonovaX}"
 cd "$ROOT"
 
 # --- paper sim env (persist across nohup) ---
-export PAPER_DEFAULT_PRICE="${PAPER_DEFAULT_PRICE:-50000}"
-export PAPER_PRICE_STEP="${PAPER_PRICE_STEP:-2}"
+if [ -z "${PAPER_DEFAULT_PRICE:-}" ]; then
+  export PAPER_DEFAULT_PRICE="50000"
+fi
 export PAPER_FEE_QUOTE="${PAPER_FEE_QUOTE:-0}"
 export PAPER_FEE_RATE="${PAPER_FEE_RATE:-0.001}"
 
