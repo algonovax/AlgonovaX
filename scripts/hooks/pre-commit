@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Block accidental heredoc markers committed into markdown/docs
-files="$(git diff --cached --name-only --diff-filter=ACM | rg -n '\.(md|txt)$' || true)"
-if [ -n "${files:-}" ]; then
-  if git diff --cached -- $files | rg -n --fixed-strings "> EOF" >/dev/null; then
-    echo "FAIL: staged docs contain accidental heredoc marker '> EOF'"
-    echo "Fix the file, then re-stage."
-    exit 1
-  fi
-fi
-exit 0
+git diff --cached --name-only --diff-filter=ACM -z \
+| while IFS= read -r -d '' f; do
+    case "$f" in
+      *.md|*.txt)
+        if git show ":$f" | rg --fixed-strings "> EOF" >/dev/null; then
+          echo "FAIL: staged file contains accidental heredoc marker '> EOF': $f"
+          echo "Fix the file, then re-stage."
+          exit 1
+        fi
+        ;;
+    esac
+  done

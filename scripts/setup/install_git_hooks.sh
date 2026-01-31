@@ -3,19 +3,9 @@ set -euo pipefail
 
 ROOT="${ALGONOVAX_ROOT:-$HOME/AlgonovaX}"
 cd "$ROOT"
+git rev-parse --show-toplevel >/dev/null
 
 mkdir -p .git/hooks
-
-src="$ROOT/scripts/hooks/pre-commit"
-dst="$ROOT/.git/hooks/pre-commit"
-
-if [ ! -f "$src" ]; then
-  echo "FAIL: missing $src"
-  exit 1
-fi
-
-# copy to avoid symlink issues on some environments
-cp -f "$src" "$dst"
-chmod +x "$dst"
-
+cp -f "$ROOT/scripts/hooks/pre-commit" "$ROOT/.git/hooks/pre-commit"
+chmod +x "$ROOT/.git/hooks/pre-commit"
 echo "OK: installed git hooks"
