@@ -10,7 +10,7 @@ import traceback
 from typing import Any
 
 from algonovax.config import load_settings
-from algonovax.engine import run
+from algonovax.engine import run_loop
 from algonovax.intents import pop_new_intents
 
 try:
@@ -415,7 +415,7 @@ def main() -> int:
         print("[engine] starting", flush=True)
         settings = load_settings()
         cfg = normalize_cfg(settings)
-        print("[engine] settings loaded; entering run()", flush=True)
+        print("[engine] settings loaded; entering run_loop()", flush=True)
 
         # intents
         try:
@@ -439,8 +439,8 @@ def main() -> int:
             print(f"[engine] intent processing error: {e}", flush=True)
 
         strategy = resolve_strategy(cfg)
-        rc = run(cfg, strategy)
-        print(f"[engine] run() returned rc={rc}", flush=True)
+        rc = run_loop(settings)
+        print(f"[engine] run_loop() returned rc={rc}", flush=True)
         return int(rc or 0)
 
     except SystemExit as e:

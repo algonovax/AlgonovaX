@@ -47,7 +47,7 @@ STATE_PATH = "data/state.json"
 def run_engine() -> int:
     """CLI entrypoint: python -m algonovax engine"""
     from algonovax.config import load_settings
-    from algonovax.engine import run_loop as settings_run_loop
+    from algonovax.engine.core import run_loop as settings_run_loop
 
     settings = load_settings()
     try:
