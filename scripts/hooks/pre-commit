@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-git diff --cached --name-only --diff-filter=ACM -z \
-| while IFS= read -r -d '' f; do
-    case "$f" in
-      *.md|*.txt)
-        if git show ":$f" | rg --fixed-strings "> EOF" >/dev/null; then
-          echo "FAIL: staged file contains accidental heredoc marker '> EOF': $f"
-          echo "Fix the file, then re-stage."
-          exit 1
-        fi
-        ;;
-    esac
-  done
+python ./scripts/hooks/check_staged_docs.py
