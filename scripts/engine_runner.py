@@ -9,6 +9,25 @@ import time
 import traceback
 from typing import Any
 
+# --- bootstrap (Termux-safe): ensure repo import works even if venv isn't activated ---
+try:
+    import os, sys
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[1]
+    # Prefer venv site-packages if present (supports "python scripts/engine_runner.py")
+    venv = repo / ".venv"
+    if venv.exists():
+        pyver = f"python{sys.version_info.major}.{sys.version_info.minor}"
+        site = venv / "lib" / pyver / "site-packages"
+        if site.exists() and str(site) not in sys.path:
+            sys.path.insert(0, str(site))
+    # Always include repo root for editable/local import
+    if str(repo) not in sys.path:
+        sys.path.insert(0, str(repo))
+except Exception as _e:
+    print(f"[engine] bootstrap failed: {_e}", flush=True)
+# --- end bootstrap ---
 from algonovax.config import load_settings
 from algonovax.engine.engine import run_engine
 from algonovax.intents import pop_new_intents
