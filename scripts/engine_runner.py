@@ -457,7 +457,7 @@ def main() -> int:
             print(f"[engine] intent processing error: {e}", flush=True)
 
         # strategy resolution currently unused by the engine loop; removed.
-        rc = run_engine()
+        rc = run_engine(stop_evt)
         print(f"[engine] run_loop() returned rc={rc}", flush=True)
         return int(rc or 0)
 
