@@ -10,7 +10,7 @@ import traceback
 from typing import Any
 
 from algonovax.config import load_settings
-from algonovax.engine import run_loop
+from algonovax.engine.engine import run_engine
 from algonovax.intents import pop_new_intents
 
 try:
@@ -409,7 +409,6 @@ def main() -> int:
     signal.signal(signal.SIGTERM, _handle_signal)
 
     threading.Thread(target=_heartbeat, args=(stop_evt,), daemon=True).start()
-    threading.Thread(target=_watch_kill_switch, args=(stop_evt,), daemon=True).start()
 
     try:
         print("[engine] starting", flush=True)
@@ -438,8 +437,8 @@ def main() -> int:
         except Exception as e:
             print(f"[engine] intent processing error: {e}", flush=True)
 
-        strategy = resolve_strategy(cfg)
-        rc = run_loop(settings)
+        # strategy resolution currently unused by the engine loop; removed.
+        rc = run_engine()
         print(f"[engine] run_loop() returned rc={rc}", flush=True)
         return int(rc or 0)
 

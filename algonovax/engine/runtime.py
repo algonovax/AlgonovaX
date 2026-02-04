@@ -9,10 +9,10 @@ from algonovax.risk import RiskLimits, validate_limits  # noqa: E402
 
 # Deterministic logger: always emits to stdout (Termux + redirection safe)
 log = logging.getLogger("algonovax.engine")
-log.handlers.clear()
-h = logging.StreamHandler(sys.stdout)
-h.setFormatter(logging.Formatter("%(message)s"))
-log.addHandler(h)
+if not log.handlers:
+    h = logging.StreamHandler(sys.stdout)
+    h.setFormatter(logging.Formatter("%(message)s"))
+    log.addHandler(h)
 log.setLevel(logging.INFO)
 
 
