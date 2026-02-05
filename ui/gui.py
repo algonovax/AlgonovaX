@@ -508,7 +508,7 @@ def api_apply_settings(request: Request, settings: dict):
             sanitized[k] = str(settings[k]).strip()
 
     if not sanitized.get("KILL_SWITCH_PATH"):
-        sanitized["KILL_SWITCH_PATH"] = KS_SOFT
+        sanitized["KILL_SWITCH_PATH"] = KS_HARD
 
     _write_engine_override(sanitized)
     _systemctl("daemon-reload")
@@ -525,7 +525,7 @@ def api_mode_paper(request: Request):
             "EXCHANGE": "paper",
             "PAPER_TRADING_ENABLED": "1",
             "LIVE_TRADING_ENABLED": "0",
-            "KILL_SWITCH_PATH": KS_SOFT,
+            "KILL_SWITCH_PATH": KS_HARD,
         }
     )
     _write_engine_override({k: env.get(k, "") for k in ALLOWED_ENV})
@@ -552,7 +552,7 @@ def api_mode_live_confirm(request: Request, confirm: bool = False):
             "EXCHANGE": "kraken",
             "PAPER_TRADING_ENABLED": "0",
             "LIVE_TRADING_ENABLED": "1",
-            "KILL_SWITCH_PATH": KS_SOFT,
+            "KILL_SWITCH_PATH": KS_HARD,
         }
     )
     _write_engine_override({k: env.get(k, "") for k in ALLOWED_ENV})
