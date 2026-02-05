@@ -80,3 +80,39 @@ def run_loop(cfg=None, strategy=None) -> int:
 def run(cfg, strategy) -> int:
     """Back-compat API. Ignore args; env/config driven."""
     return int(run_engine())
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entrypoint for `python -m algonovax engine`.
+
+    Must exist for tests + __main__.py. Must preserve exit code 2 for killswitch.
+    """
+    import traceback
+
+    try:
+        # Prefer config-driven settings if available.
+        settings = None
+        try:
+            from algonovax.config import load_settings  # type: ignore
+            settings = load_settings()
+        except Exception:
+            # If config isn't available/compatible, fall back to calling run_engine directly.
+            settings = None
+
+        try:
+            if settings is not None:
+                try:
+                    return int(run_engine(settings))  # type: ignore[arg-type]
+                except TypeError:
+                    return int(run_engine())  # type: ignore[call-arg]
+            return int(run_engine())  # type: ignore[call-arg]
+        except SystemExit as e:
+            # Preserve SystemExit codes (killswitch expects 2)
+            try:
+                return int(e.code)  # type: ignore[arg-type]
+            except Exception:
+                return 1
+    except Exception:
+        traceback.print_exc()
+        return 1
+

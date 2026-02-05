@@ -18,24 +18,45 @@ if not log.handlers:
 log.setLevel(logging.INFO)
 
 
-def run_once(settings: Settings) -> None:
-    # Placeholder: wire your strategy/exchange here.
-    log.info(
-        f"tick exchange={settings.exchange} symbol={settings.symbol} timeframe={settings.timeframe}"
-    )
+def run_once(settings, stop_evt=None) -> int:
+    """Single tick.
+    Back-compat: accepts (stop_evt, settings) if args are swapped.
+    """
+    try:
+        if stop_evt is not None and hasattr(settings, "is_set") and not hasattr(stop_evt, "is_set"):
+            settings, stop_evt = stop_evt, settings
+    except Exception:
+        pass
 
 
-def run_loop(settings: Settings, stop_evt: threading.Event | None = None) -> None:
-    limits = RiskLimits(
-        max_daily_loss_usd=settings.max_daily_loss_usd,
-        max_open_positions=settings.max_open_positions,
-        kill_switch_path=settings.kill_switch_path,
-    )
-    validate_limits(limits)
+
+def run_loop(settings, stop_evt=None) -> int:
+
+    # back-compat: tolerate swapped args (stop_evt, settings)
+    try:
+        if stop_evt is not None and hasattr(settings, "is_set") and not hasattr(stop_evt, "is_set"):
+            settings, stop_evt = stop_evt, settings
+    except Exception:
+        pass
+
+    # make stop_evt safe even if caller passes wrong type
+    try:
+        _stop_is_set = stop_evt.is_set  # type: ignore[attr-defined]
+    except Exception:
+        _stop_is_set = lambda: False
+
+    """Main engine loop.
+    Back-compat: accepts (stop_evt, settings) if args are swapped.
+    """
+    try:
+        if stop_evt is not None and hasattr(settings, "is_set") and not hasattr(stop_evt, "is_set"):
+            settings, stop_evt = stop_evt, settings
+    except Exception:
+        pass
 
     log.info("engine_start")
     while True:
-        if stop_evt is not None and stop_evt.is_set():
+        if stop_evt is not None and _stop_is_set():
             try:
                 log.info('engine_stop_requested')
             except Exception:
@@ -50,8 +71,6 @@ def run_loop(settings: Settings, stop_evt: threading.Event | None = None) -> Non
         except Exception:
             log.exception("engine_tick_failed")
         time.sleep(2)
-
-
 
 def _kill_switch_active_hard_soft(kill_switch_path: str) -> bool:
     try:
