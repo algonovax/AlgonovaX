@@ -477,9 +477,18 @@ def main() -> int:
         return int(rc or 0)
 
     except SystemExit as e:
-        code = int(getattr(e, "code", 0) or 0)
-        print(f"[engine] SystemExit({code})", flush=True)
-        return code
+        code = getattr(e, 'code', 1)
+        try:
+            code_i = int(code)
+        except Exception:
+            code_i = 1
+        if code_i == 2:
+            try:
+                print('[engine_runner] killswitch exit detected; not restarting', flush=True)
+            except Exception:
+                pass
+            return 2
+        return code_i
     except Exception:
         print("[engine] fatal:", flush=True)
         traceback.print_exc()
