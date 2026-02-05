@@ -2,6 +2,7 @@ from __future__ import annotations
 import traceback
 from pathlib import Path
 from typing import Any
+import threading
 
 
 def _candle_dict(c: Any) -> dict[str, Any]:
@@ -44,7 +45,7 @@ STATE_PATH = "data/state.json"
 # =========================
 # ENTRYPOINTS (DO NOT CYCLE)
 # =========================
-def run_engine() -> int:
+def run_engine(stop_evt: threading.Event | None = None) -> int:
     """CLI entrypoint: python -m algonovax engine"""
     from algonovax.config import load_settings
     from algonovax.engine.core import run_loop as settings_run_loop
@@ -61,6 +62,9 @@ def run_engine() -> int:
         if settings.live_trading:
             raise RuntimeError("EXCHANGE=paper is incompatible with LIVE_TRADING_ENABLED=1")
     try:
+    try:
+        settings_run_loop(settings, stop_evt)
+    except TypeError:
         settings_run_loop(settings)
         return 0
     except SystemExit:

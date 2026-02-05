@@ -1,4 +1,5 @@
 from __future__ import annotations
+import threading
 
 import logging
 import sys
@@ -23,7 +24,7 @@ def run_once(settings: Settings) -> None:
     )
 
 
-def run_loop(settings: Settings) -> None:
+def run_loop(settings: Settings, stop_evt: threading.Event | None = None) -> None:
     limits = RiskLimits(
         max_daily_loss_usd=settings.max_daily_loss_usd,
         max_open_positions=settings.max_open_positions,
@@ -33,6 +34,13 @@ def run_loop(settings: Settings) -> None:
 
     log.info("engine_start")
     while True:
+        if stop_evt is not None and stop_evt.is_set():
+            try:
+                log.info('engine_stop_requested')
+            except Exception:
+                pass
+            return
+
         if _kill_switch_active(str(settings.kill_switch_path)):
             log.error("kill_switch_triggered; stopping")
             raise SystemExit(2)
