@@ -38,3 +38,8 @@ echo "--- tail ${log:-"(no log found)"} ---"
 if [[ -n "${log:-}" && -f "$log" ]]; then
   tail -n 30 "$log" || true
 fi
+
+if [[ -n "${log:-}" && -f "$log.err" ]]; then
+  echo "--- tail $log.err ---"
+  tail -n 30 "$log.err" || true
+fi
