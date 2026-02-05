@@ -82,3 +82,7 @@ data/
 *.sqlite
 .env
 .env.*
+.patch_backups/
+engine_runner_dump.*
+patch_engine_runner.sh
+logs/*.err
