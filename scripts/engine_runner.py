@@ -1,6 +1,12 @@
 from __future__ import annotations
 import sys
 
+# log guards
+ks_logged = False
+last_alive_ts = 0
+not_restarting_logged = False
+
+
 def _killswitch_present() -> bool:
     try:
         hard, soft = kill_switch_paths()
@@ -106,7 +112,10 @@ def _watch_kill_switch(stop_evt: threading.Event) -> None:
             soft_on = os.path.exists(soft)
             if hard_on or soft_on:
                 which = hard if hard_on else soft
-                print(f"[engine] kill_switch_triggered ({which}); hard-exit", flush=True)
+                global ks_logged
+                if not ks_logged:
+                    ks_logged = True
+                    print(f"[engine] kill_switch_triggered ({which}); hard-exit", flush=True)
                 raise SystemExit(2)
             time.sleep(0.25)
     except SystemExit:
@@ -120,7 +129,22 @@ def _heartbeat(stop_evt: threading.Event) -> None:
         try:
             ks = kill_switch_path()
             hard, soft = kill_switch_paths()
-            print(f"[engine] alive ts={int(time.time())} kill_switch_hard={hard} hard_exists={os.path.exists(hard)} kill_switch_soft={soft} soft_exists={os.path.exists(soft)}", file=sys.stderr, flush=True)
+            _now = int(time.time())
+            global last_alive_ts
+            if _now != last_alive_ts:
+                last_alive_ts = _now
+                try:
+                    _hard_exists = bool(hard) and os.path.exists(hard)
+                    _soft_exists = bool(soft) and os.path.exists(soft)
+                except Exception:
+                    _hard_exists = False
+                    _soft_exists = False
+                print(
+                    f"[engine] alive ts={_now} kill_switch_hard={hard} hard_exists={_hard_exists} "
+                    f"kill_switch_soft={soft} soft_exists={_soft_exists}",
+                    file=sys.stderr,
+                    flush=True,
+                )
         except Exception:
             print("[engine] heartbeat error:", flush=True)
             traceback.print_exc()
@@ -503,7 +527,10 @@ def main() -> int:
             code_i = 1
         if code_i == 2:
             try:
-                print('[engine_runner] killswitch exit detected; not restarting', flush=True)
+                global not_restarting_logged
+                if not not_restarting_logged:
+                    not_restarting_logged = True
+                    print("[engine_runner] killswitch exit detected; not restarting", flush=True)
             except Exception:
                 pass
             return 2
