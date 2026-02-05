@@ -12,7 +12,7 @@ die() { echo "ERROR: $*" >&2; exit 1; }
 ts="$(date +%Y%m%d_%H%M%S)"
 cp -a "$APP_PY" "$APP_PY.bak.$ts"
 
-python3 - "$APP_PY" <<\'PY\'
+python3 - "$APP_PY" <<'PY'
 from __future__ import annotations
 import sys
 from pathlib import Path
