@@ -26,7 +26,7 @@ jobs:
         run: |
           set -euo pipefail
           # fail if any heredoc uses literal backslash-escaped quotes (common paste artifact)
-          if rg -n "<<\\'[^']+\\'" scripts; then
+          if rg -n -uuu --text "<<\\\\\'[^\']+\\\\\'" scripts --glob "!scripts/**/__pycache__/**" --glob "!scripts/**/*.pyc"; then
             echo "ERROR: found escaped heredoc markers (<<\'TAG\') in scripts/"
             exit 1
           fi
