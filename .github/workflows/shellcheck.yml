@@ -22,6 +22,15 @@ jobs:
             exit 1
           fi
 
+      - name: Reject escaped heredoc markers
+        run: |
+          set -euo pipefail
+          # fail if any heredoc uses literal backslash-escaped quotes (common paste artifact)
+          if rg -n "<<\\'[^']+\\'" scripts; then
+            echo "ERROR: found escaped heredoc markers (<<\'TAG\') in scripts/"
+            exit 1
+          fi
+
       - name: Bash parse check
         run: |
           set -euo pipefail
