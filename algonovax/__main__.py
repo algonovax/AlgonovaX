@@ -27,8 +27,7 @@ def _cmd_gui(argv: list[str]) -> int:
         port = int(os.getenv("ALGONOVAX_PORT", "8000"))
     except Exception:
         port = 8000
-
-    from algonovax.gui.app import app  # type: ignore
+from ui.gui import app  # type: ignore
 
     uvicorn.run(app, host=host, port=port, log_level="info")
     return 0
