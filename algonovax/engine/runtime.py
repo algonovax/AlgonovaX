@@ -1,5 +1,6 @@
 from __future__ import annotations
 import threading
+from pathlib import Path
 
 import logging
 import sys
@@ -41,7 +42,7 @@ def run_loop(settings: Settings, stop_evt: threading.Event | None = None) -> Non
                 pass
             return
 
-        if _kill_switch_active(str(settings.kill_switch_path)):
+        if _kill_switch_active_hard_soft(str(settings.kill_switch_path)):
             log.error("kill_switch_triggered; stopping")
             raise SystemExit(2)
         try:
@@ -51,7 +52,16 @@ def run_loop(settings: Settings, stop_evt: threading.Event | None = None) -> Non
         time.sleep(2)
 
 
-def _kill_switch_active(kill_switch_path: str) -> bool:
+
+def _kill_switch_active_hard_soft(kill_switch_path: str) -> bool:
+    try:
+        ks = Path(str(kill_switch_path))
+        ks_soft = ks if str(ks).endswith("_SOFT") else Path(str(ks) + "_SOFT")
+        return ks.exists() or ks_soft.exists()
+    except Exception:
+        return False
+
+def _kill_switch_active_hard_soft(kill_switch_path: str) -> bool:
     try:
         ks = Path(str(kill_switch_path))
         ks_soft = ks if str(ks).endswith("_SOFT") else Path(str(ks) + "_SOFT")
