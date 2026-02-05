@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$(dirname "${BASH_SOURCE[0]}")")" && pwd)"
+cd "$ROOT"
+[ -d .git ] || { echo "FAIL: must run inside repo (missing .git)"; exit 1; }
 cd "$(dirname "$(dirname "${BASH_SOURCE[0]}")")"
 
 PIDFILE="var/engine_runner.pid"
