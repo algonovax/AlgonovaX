@@ -1,6 +1,20 @@
 from __future__ import annotations
 import sys
 
+def _killswitch_present() -> bool:
+    try:
+        hard, soft = kill_switch_paths()
+        return os.path.exists(hard) or os.path.exists(soft)
+    except Exception:
+        return False
+
+def _repo_root() -> str:
+    try:
+        # scripts/engine_runner.py -> repo root
+        return str(Path(__file__).resolve().parents[1])
+    except Exception:
+        return os.getcwd()
+
 import importlib
 import os
 import pkgutil
@@ -77,8 +91,6 @@ def kill_switch_path() -> str:
     # Back-compat: "primary" path for logs/UI. Prefer env override if set.
     root = os.getenv("ALGONOVAX_ROOT") or str(Path(__file__).resolve().parents[1])
     return os.getenv("KILL_SWITCH_PATH") or os.path.join(root, "data", "KILL_SWITCH")
-
-
 def kill_switch_paths() -> tuple[str, str]:
     # Always check BOTH hard and soft. If KILL_SWITCH_PATH overrides, treat that as "hard".
     hard = kill_switch_path()
@@ -429,6 +441,13 @@ def handle_manual_sell(symbol: str, qty: float) -> None:
 
 def main() -> int:
     stop_evt = threading.Event()
+
+    if _killswitch_present():
+        try:
+            print("[engine_runner] killswitch present at startup; exiting(2)", flush=True)
+        except Exception:
+            pass
+        raise SystemExit(2)
 
     # start killswitch watcher (hard+soft)
     t_ks = threading.Thread(target=_watch_kill_switch, args=(stop_evt,), daemon=True)
