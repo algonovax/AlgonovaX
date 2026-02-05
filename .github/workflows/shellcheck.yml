@@ -1,0 +1,31 @@
+name: shell-sanity
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  bash_sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Reject trailing redirect paste artifacts
+        run: |
+          set -euo pipefail
+          # fail if any scripts line ends with a naked '>'
+          if rg -n '[ \t]*>\s*$' scripts; then
+            echo "ERROR: found trailing '>' tokens in scripts/"
+            exit 1
+          fi
+
+      - name: Bash parse check
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for f in scripts/*.sh; do
+            bash -n "$f"
+          done
