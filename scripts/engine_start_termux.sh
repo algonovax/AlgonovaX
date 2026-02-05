@@ -30,4 +30,14 @@ fi
 nohup "$PY" "$BASE/scripts/engine_runner.py" >>"$LOG" 2>&1 &
 PID="$!"
 echo "$PID" >"$PIDFILE"
+
+# verify process is actually alive (avoid stale pidfile)
+sleep 0.2
+if ! kill -0 "$PID" 2>/dev/null; then
+  echo "FAIL: engine exited immediately; see $LOG"
+  rm -f "$PIDFILE" 2>/dev/null || true
+  tail -n 120 "$LOG" 2>/dev/null || true
+  exit 1
+fi
+
 echo "OK: started pid=$PID"
