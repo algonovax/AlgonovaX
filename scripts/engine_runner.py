@@ -430,6 +430,10 @@ def handle_manual_sell(symbol: str, qty: float) -> None:
 def main() -> int:
     stop_evt = threading.Event()
 
+    # start killswitch watcher (hard+soft)
+    t_ks = threading.Thread(target=_watch_kill_switch, args=(stop_evt,), daemon=True)
+    t_ks.start()
+
     def _handle_signal(signum, _frame):
         print(f"[engine] signal={signum} received; exiting", flush=True)
         stop_evt.set()
