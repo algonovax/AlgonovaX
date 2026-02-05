@@ -1,4 +1,5 @@
 from __future__ import annotations
+import sys
 
 import importlib
 import os
@@ -94,7 +95,7 @@ def _heartbeat(stop_evt: threading.Event) -> None:
     while not stop_evt.is_set():
         try:
             ks = kill_switch_path()
-            print(f"[engine] alive ts={int(time.time())} kill_switch={ks} exists={os.path.exists(ks)}", flush=True)
+            print(f"[engine] alive ts={int(time.time())} kill_switch={ks} exists={os.path.exists(ks)}", file=sys.stderr, flush=True)
         except Exception:
             print("[engine] heartbeat error:", flush=True)
             traceback.print_exc()
