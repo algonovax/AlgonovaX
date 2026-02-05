@@ -62,18 +62,16 @@ def run_engine(stop_evt: threading.Event | None = None) -> int:
         if settings.live_trading:
             raise RuntimeError("EXCHANGE=paper is incompatible with LIVE_TRADING_ENABLED=1")
     try:
-    try:
-        settings_run_loop(settings, stop_evt)
-    except TypeError:
-        settings_run_loop(settings)
+        try:
+            settings_run_loop(settings, stop_evt)
+        except TypeError:
+            settings_run_loop(settings)
         return 0
     except SystemExit:
         # preserve explicit exit codes from core loop (e.g., kill switch)
         raise
     except KeyboardInterrupt:
         return 130
-
-
 def run_loop(cfg=None, strategy=None) -> int:
     """Back-compat shim. Ignore args; env/config driven."""
     return int(run_engine())
