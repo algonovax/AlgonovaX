@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 
 import shutil
 import json
@@ -77,6 +78,60 @@ ALLOWED_ENV = {
 # trade intents file (engine should watch this; if not, it's harmless)
 INTENTS_PATH = f"{BASE}/data/intents.json"
 
+# Termux control scripts (no systemd)
+ENGINE_START_SH = os.path.join(BASE, "scripts", "engine_start_termux.sh")
+ENGINE_STOP_SH = os.path.join(BASE, "scripts", "engine_stop_termux.sh")
+ENGINE_STATUS_SH = os.path.join(BASE, "scripts", "engine_status_termux.sh")
+KILLSWITCH_ON_SH = os.path.join(BASE, "scripts", "kill_switch_on.sh")
+KILLSWITCH_OFF_SH = os.path.join(BASE, "scripts", "kill_switch_off.sh")
+KILLSWITCH_CHECK_SH = os.path.join(BASE, "scripts", "killswitch_check.sh")
+
+ENGINE_PID_FILE = os.path.join(BASE, "var", "engine.pid")
+
+
+def _exists_exec(path: str) -> bool:
+    try:
+        return os.path.exists(path) and os.access(path, os.X_OK)
+    except Exception:
+        return False
+
+
+def _termux_engine_state() -> str:
+    # Source of truth on Termux: scripts/engine_status_termux.sh
+    try:
+        if _exists_exec(ENGINE_STATUS_SH):
+            out = _run([ENGINE_STATUS_SH])
+            # expected: "RUNNING pid=..." or "STOPPED"
+            if out.upper().startswith("RUNNING"):
+                return "active"
+            if out.upper().startswith("STOPPED"):
+                return "inactive"
+        # fallback: look for engine process names
+        ps = subprocess.run(
+            ["ps", "-ef"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        ).stdout
+        if re.search(r"(engine_runner\.py|algonovax/engine|algonovax\.engine)", ps):
+            return "active"
+        return "inactive"
+    except Exception:
+        return "unknown"
+
+def _termux_killswitch_state() -> str:
+    # Soft/hard killswitch files are authoritative on Termux
+    hard = os.path.exists(KS_HARD)
+    soft = os.path.exists(KS_SOFT)
+    if hard or soft:
+        return "active"
+    return "inactive"
+
+
+def _termux_backtest_state() -> str:
+    # No background unit on Termux; expose whether a job file exists
+    try:
+        return "active" if os.path.exists(BT_JOB_PATH) else "inactive"
+    except Exception:
+        return "unknown"
+
 
 def _now() -> int:
     import time
@@ -115,13 +170,62 @@ def _run(cmd: list[str]) -> str:
 
 
 def _systemctl(*args: str) -> str:
-    # Termux/Android has no systemd/systemctl.
+    # Termux/Android has no systemd/systemctl; emulate the subset we need using scripts/.
     if TERMUX or shutil.which("systemctl") is None:
+        if not args:
+            return "(termux) skip systemctl"
+        action = args[0]
+        unit = args[1] if len(args) > 1 else ""
+
+        if "engine" in unit:
+            if action in ("start", "enable"):
+                return _run([ENGINE_START_SH]) if _exists_exec(ENGINE_START_SH) else "(termux) missing engine_start_termux.sh"
+            if action in ("stop", "disable"):
+                return _run([ENGINE_STOP_SH]) if _exists_exec(ENGINE_STOP_SH) else "(termux) missing engine_stop_termux.sh"
+            if action == "restart":
+                out1 = _run([ENGINE_STOP_SH]) if _exists_exec(ENGINE_STOP_SH) else ""
+                out2 = _run([ENGINE_START_SH]) if _exists_exec(ENGINE_START_SH) else ""
+                return (out1 + "\n" + out2).strip() or "(termux) restart attempted"
+            if action == "is-active":
+                return _termux_engine_state()
+
+        if "killswitch" in unit:
+            if action in ("start", "enable"):
+                if _exists_exec(KILLSWITCH_ON_SH):
+                    return _run([KILLSWITCH_ON_SH])
+                _touch(KS_SOFT)
+                return "(termux) killswitch on"
+            if action in ("stop", "disable"):
+                if _exists_exec(KILLSWITCH_OFF_SH):
+                    return _run([KILLSWITCH_OFF_SH])
+                _rm(KS_SOFT); _rm(KS_HARD)
+                return "(termux) killswitch off"
+            if action == "restart":
+                if _exists_exec(KILLSWITCH_OFF_SH):
+                    _run([KILLSWITCH_OFF_SH])
+                if _exists_exec(KILLSWITCH_ON_SH):
+                    return _run([KILLSWITCH_ON_SH])
+                _touch(KS_SOFT)
+                return "(termux) killswitch toggled"
+            if action == "is-active":
+                return "active" if os.path.exists(KS_SOFT) or os.path.exists(KS_HARD) else "inactive"
+
         return "(termux) skip systemctl"
+
     return _run(["systemctl", "--user", *args])
 
 
+
 def _is_active(unit: str) -> str:
+    # Termux/Android: no systemd. Provide best-effort states.
+    if TERMUX:
+        if "engine" in unit:
+            return _termux_engine_state()
+        if "killswitch" in unit:
+            return _termux_killswitch_state()
+        if "backtest" in unit:
+            return _termux_backtest_state()
+        return "unknown"
     try:
         return subprocess.run(
             ["systemctl", "--user", "is-active", unit],
@@ -131,6 +235,7 @@ def _is_active(unit: str) -> str:
         ).stdout.strip()
     except Exception:
         return "unknown"
+
 
 
 def _touch(path: str):

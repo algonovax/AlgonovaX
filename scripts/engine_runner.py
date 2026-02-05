@@ -74,28 +74,41 @@ def normalize_cfg(settings: Any) -> dict[str, Any]:
 
 
 def kill_switch_path() -> str:
-    root = os.environ.get("ALGONOVAX_ROOT") or os.path.expanduser("~/AlgonovaX")
+    # Back-compat: "primary" path for logs/UI. Prefer env override if set.
+    root = os.getenv("ALGONOVAX_ROOT") or str(Path(__file__).resolve().parents[1])
     return os.getenv("KILL_SWITCH_PATH") or os.path.join(root, "data", "KILL_SWITCH")
 
 
+def kill_switch_paths() -> tuple[str, str]:
+    # Always check BOTH hard and soft. If KILL_SWITCH_PATH overrides, treat that as "hard".
+    hard = kill_switch_path()
+    # Soft is adjacent conventional file unless hard already ends with _SOFT.
+    soft = hard if hard.endswith("_SOFT") else (hard + "_SOFT")
+    return hard, soft
+
 def _watch_kill_switch(stop_evt: threading.Event) -> None:
-    while not stop_evt.is_set():
-        try:
-            ks = kill_switch_path()
-            if os.path.exists(ks):
-                print(f"[engine] kill_switch_triggered ({ks}); hard-exit", flush=True)
+    try:
+        while not stop_evt.is_set():
+            hard, soft = kill_switch_paths()
+            hard_on = os.path.exists(hard)
+            soft_on = os.path.exists(soft)
+            if hard_on or soft_on:
+                which = hard if hard_on else soft
+                print(f"[engine] kill_switch_triggered ({which}); hard-exit", flush=True)
                 raise SystemExit(2)
-        except Exception:
-            print("[engine] kill-switch watcher error:", flush=True)
-            traceback.print_exc()
-        stop_evt.wait(0.5)
-
-
+            time.sleep(0.25)
+    except SystemExit:
+        raise
+    except Exception as e:
+        print(f"[engine] kill_switch watcher error: {e}", flush=True)
+        # don't kill the engine because the watcher is sick
+        return
 def _heartbeat(stop_evt: threading.Event) -> None:
     while not stop_evt.is_set():
         try:
             ks = kill_switch_path()
-            print(f"[engine] alive ts={int(time.time())} kill_switch={ks} exists={os.path.exists(ks)}", file=sys.stderr, flush=True)
+            hard, soft = kill_switch_paths()
+            print(f"[engine] alive ts={int(time.time())} kill_switch_hard={hard} hard_exists={os.path.exists(hard)} kill_switch_soft={soft} soft_exists={os.path.exists(soft)}", file=sys.stderr, flush=True)
         except Exception:
             print("[engine] heartbeat error:", flush=True)
             traceback.print_exc()
