@@ -12,7 +12,7 @@ die() { echo "ERROR: $*" >&2; exit 1; }
 ts="$(date +%Y%m%d_%H%M%S)"
 cp -a "$APP_PY" "$APP_PY.bak.$ts"
 
-python3 - <<'PY'
+python3 - "$APP_PY" <<\'PY\'
 from __future__ import annotations
 import sys
 from pathlib import Path
@@ -97,8 +97,7 @@ lines.insert(closing_line_idx, f"{arg_indent}storage_secret=storage_secret,\n")
 
 app_py.write_text("".join(lines), encoding="utf-8")
 print("OK: patched app.py to pass storage_secret into ui.run()")
-PY "$APP_PY"
-
+PY
 systemctl --user daemon-reload
 systemctl --user restart algonovax-gui.service
 
