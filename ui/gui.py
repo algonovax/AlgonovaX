@@ -42,6 +42,7 @@ OVERRIDE_FILE = os.path.join(
     f"{ENGINE_SERVICE}.d",
     "override.conf",
 )
+TERMUX_OVERRIDE_FILE = os.path.join(BASE, "var", "engine.override.env")
 
 KS_HARD = f"{BASE}/data/KILL_SWITCH"
 KS_SOFT = f"{BASE}/data/KILL_SWITCH_SOFT"
@@ -295,6 +296,21 @@ def _save_session(token: str):
 
 
 def _write_engine_override(env: dict[str, str]) -> None:
+    # Termux: write a simple KEY=VALUE env file that scripts/engine_start_termux.sh sources.
+    if TERMUX:
+        os.makedirs(os.path.dirname(TERMUX_OVERRIDE_FILE), exist_ok=True)
+        lines: list[str] = []
+        for k, v in env.items():
+            if k not in ALLOWED_ENV:
+                continue
+            v = str(v)
+            # bash-safe single-quote escaping
+            v = v.replace("'", "'\''")
+            lines.append(f"{k}='{v}'")
+        with open(TERMUX_OVERRIDE_FILE, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        return
+
     os.makedirs(OVR_DIR, exist_ok=True)
     lines = ["[Service]"]
     for k, v in env.items():
@@ -304,10 +320,27 @@ def _write_engine_override(env: dict[str, str]) -> None:
         lines.append(f'Environment={k}="{v}"')
     with open(OVR_FILE, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
-
-
 def _read_engine_effective_env() -> dict:
     try:
+        if TERMUX:
+            if not os.path.exists(TERMUX_OVERRIDE_FILE):
+                return {}
+            env: dict[str, str] = {}
+            with open(TERMUX_OVERRIDE_FILE, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = (line or '').strip()
+                    if not line or line.startswith('#') or '=' not in line:
+                        continue
+                    k, v = line.split('=', 1)
+                    k = k.strip()
+                    v = v.strip()
+                    if k not in ALLOWED_ENV:
+                        continue
+                    # remove optional quotes
+                    if (v.startswith("'") and v.endswith("'")) or (v.startswith('"') and v.endswith('"')):
+                        v = v[1:-1]
+                    env[k] = v
+            return env
         out = subprocess.run(
             ["systemctl", "--user", "show", ENGINE_SERVICE, "--property=Environment"],
             stdout=subprocess.PIPE,
@@ -412,9 +445,7 @@ def api_status(request: Request):
         "engine_lock_exists": os.path.exists(LOCK_PATH),
         "log_path": LOG_PATH,
         "auth_enabled": _auth_enabled(),
-        "override_file": (
-            OVERRIDE_FILE if (not TERMUX and shutil.which("systemctl")) else None
-        ),
+        "override_file": (TERMUX_OVERRIDE_FILE if TERMUX else (OVERRIDE_FILE if (shutil.which("systemctl")) else None)),
         "intents_file": INTENTS_PATH,
     }
 
