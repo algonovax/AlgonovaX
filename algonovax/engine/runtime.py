@@ -29,7 +29,10 @@ def _utc_now_iso() -> str:
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    tmp.write_text(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
     os.replace(tmp, path)
 
 
@@ -62,7 +65,7 @@ def run_once(settings: Settings, stop_evt: threading.Event | None = None) -> int
     try:
         _atomic_write_json(STATE_PATH, payload)
     except Exception as e:
-        log.error(f"state_write_failed err={e!r}")
+        log.error("state_write_failed err=%r", e)
         payload["ok"] = False
         payload["err"] = repr(e)
 
