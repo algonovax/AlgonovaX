@@ -1,15 +1,17 @@
 from __future__ import annotations
-import threading
-from pathlib import Path
 
+import json
 import logging
+import os
 import sys
+import threading
 import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
-from algonovax.config import Settings  # noqa: E402
-from algonovax.risk import RiskLimits, validate_limits  # noqa: E402
+from algonovax.config import Settings
 
-# Deterministic logger: always emits to stdout (Termux + redirection safe)
 log = logging.getLogger("algonovax.engine")
 if not log.handlers:
     h = logging.StreamHandler(sys.stdout)
@@ -17,74 +19,89 @@ if not log.handlers:
     log.addHandler(h)
 log.setLevel(logging.INFO)
 
+STATE_PATH = Path("data/state.json")
 
-def run_once(settings, stop_evt=None) -> int:
-    """Single tick.
-    Back-compat: accepts (stop_evt, settings) if args are swapped.
-    """
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _kill_switch_active_hard_soft(kill_switch_path: str) -> bool:
+    try:
+        ks = Path(str(kill_switch_path))
+        ks_soft = ks if str(ks).endswith("_SOFT") else Path(str(ks) + "_SOFT")
+        return ks.exists() or ks_soft.exists()
+    except Exception:
+        return False
+
+
+def run_once(settings: Settings, stop_evt: threading.Event | None = None) -> int:
+    # tolerate swapped args (stop_evt, settings)
     try:
         if stop_evt is not None and hasattr(settings, "is_set") and not hasattr(stop_evt, "is_set"):
-            settings, stop_evt = stop_evt, settings
+            settings, stop_evt = stop_evt, settings  # type: ignore[assignment]
     except Exception:
         pass
 
+    payload: dict[str, Any] = {
+        "ts": _utc_now_iso(),
+        "exchange": getattr(settings, "exchange", None),
+        "symbol": getattr(settings, "symbol", None),
+        "timeframe": getattr(settings, "timeframe", None),
+        "pid": os.getpid(),
+        "ok": True,
+    }
+
+    try:
+        _atomic_write_json(STATE_PATH, payload)
+    except Exception as e:
+        log.error(f"state_write_failed err={e!r}")
+        payload["ok"] = False
+        payload["err"] = repr(e)
+
+    log.info(
+        "tick exchange=%s symbol=%s timeframe=%s ok=%s",
+        payload.get("exchange"),
+        payload.get("symbol"),
+        payload.get("timeframe"),
+        payload.get("ok"),
+    )
+    return 0
 
 
-def run_loop(settings, stop_evt=None) -> int:
-
-    # back-compat: tolerate swapped args (stop_evt, settings)
+def run_loop(settings: Settings, stop_evt: threading.Event | None = None) -> int:
+    # tolerate swapped args (stop_evt, settings)
     try:
         if stop_evt is not None and hasattr(settings, "is_set") and not hasattr(stop_evt, "is_set"):
-            settings, stop_evt = stop_evt, settings
+            settings, stop_evt = stop_evt, settings  # type: ignore[assignment]
     except Exception:
         pass
 
-    # make stop_evt safe even if caller passes wrong type
     try:
         _stop_is_set = stop_evt.is_set  # type: ignore[attr-defined]
     except Exception:
         _stop_is_set = lambda: False
 
-    """Main engine loop.
-    Back-compat: accepts (stop_evt, settings) if args are swapped.
-    """
-    try:
-        if stop_evt is not None and hasattr(settings, "is_set") and not hasattr(stop_evt, "is_set"):
-            settings, stop_evt = stop_evt, settings
-    except Exception:
-        pass
-
     log.info("engine_start")
     while True:
         if stop_evt is not None and _stop_is_set():
-            try:
-                log.info('engine_stop_requested')
-            except Exception:
-                pass
-            return
+            log.info("engine_stop_requested")
+            return 0
 
         if _kill_switch_active_hard_soft(str(settings.kill_switch_path)):
             log.error("kill_switch_triggered; stopping")
             raise SystemExit(2)
+
         try:
-            run_once(settings)
+            run_once(settings, stop_evt)
         except Exception:
             log.exception("engine_tick_failed")
+
         time.sleep(2)
-
-def _kill_switch_active_hard_soft(kill_switch_path: str) -> bool:
-    try:
-        ks = Path(str(kill_switch_path))
-        ks_soft = ks if str(ks).endswith("_SOFT") else Path(str(ks) + "_SOFT")
-        return ks.exists() or ks_soft.exists()
-    except Exception:
-        return False
-
-def _kill_switch_active_hard_soft(kill_switch_path: str) -> bool:
-    try:
-        ks = Path(str(kill_switch_path))
-        ks_soft = ks if str(ks).endswith("_SOFT") else Path(str(ks) + "_SOFT")
-        return ks.exists() or ks_soft.exists()
-    except Exception:
-        return False
-
