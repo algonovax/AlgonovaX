@@ -5,6 +5,8 @@ from typing import Any
 
 import ccxt
 
+from algonovax.utils.net import force_ipv4
+
 
 @dataclass(frozen=True)
 class BinanceUSMarket:
@@ -13,6 +15,7 @@ class BinanceUSMarket:
     limit: int = 3
 
     def snapshot(self) -> dict[str, Any]:
+        force_ipv4()
         ex = ccxt.binanceus({"enableRateLimit": True})
         try:
             t = ex.fetch_ticker(self.symbol)
