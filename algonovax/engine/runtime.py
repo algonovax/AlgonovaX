@@ -47,13 +47,6 @@ def _kill_switch_active_hard_soft(kill_switch_path: str) -> bool:
 
 
 def run_once(settings: Settings, stop_evt: threading.Event | None = None) -> int:
-    # tolerate swapped args (stop_evt, settings)
-    try:
-        if stop_evt is not None and hasattr(settings, "is_set") and not hasattr(stop_evt, "is_set"):
-            settings, stop_evt = stop_evt, settings  # type: ignore[assignment]
-    except Exception:
-        pass
-
     payload: dict[str, Any] = {
         "ts": _utc_now_iso(),
         "exchange": getattr(settings, "exchange", None),
@@ -63,10 +56,24 @@ def run_once(settings: Settings, stop_evt: threading.Event | None = None) -> int
         "ok": True,
     }
 
+    # optional market snapshot (no trading; telemetry only)
+    try:
+        ex = (getattr(settings, "exchange", None) or "").lower()
+        if ex == "binanceus":
+            m = BinanceUSMarket(
+                symbol=str(getattr(settings, "symbol", "BTC/USDT")),
+                timeframe=str(getattr(settings, "timeframe", "1m")),
+                limit=3,
+            )
+            payload["market"] = m.snapshot()
+    except Exception as e:
+        payload["market_ok"] = False
+        payload["market_err"] = repr(e)
+
     try:
         _atomic_write_json(STATE_PATH, payload)
     except Exception as e:
-        log.error("state_write_failed err=%r", e)
+        log.error(f"state_write_failed err={e!r}")
         payload["ok"] = False
         payload["err"] = repr(e)
 
@@ -81,13 +88,6 @@ def run_once(settings: Settings, stop_evt: threading.Event | None = None) -> int
 
 
 def run_loop(settings: Settings, stop_evt: threading.Event | None = None) -> int:
-    # tolerate swapped args (stop_evt, settings)
-    try:
-        if stop_evt is not None and hasattr(settings, "is_set") and not hasattr(stop_evt, "is_set"):
-            settings, stop_evt = stop_evt, settings  # type: ignore[assignment]
-    except Exception:
-        pass
-
     try:
         _stop_is_set = stop_evt.is_set  # type: ignore[attr-defined]
     except Exception:
