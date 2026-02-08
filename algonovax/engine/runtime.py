@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from algonovax.config import Settings
+from algonovax.market.binanceus import BinanceUSMarket
 
 log = logging.getLogger("algonovax.engine")
 if not log.handlers:
